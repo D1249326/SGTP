@@ -141,7 +141,7 @@
     } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
     import {
       doc, getDoc,
-      collection, query, where, getDocs, orderBy   // ⭐ 有引入 orderBy
+      collection, query, where, getDocs, orderBy
     } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
     const userNameSpan = document.getElementById("userName");
@@ -181,7 +181,6 @@
         userNameSpan.textContent = data.name || data.email || "賣家";
 
         currentSellerUid = user.uid;
-        // ⭐ 確認是賣家之後載入商品
         loadMyProducts();
       } catch (err) {
         console.error(err);
@@ -211,7 +210,6 @@
       prodNoteEl.style.display  = "none";
 
       try {
-        // 👉 有排序：where + orderBy("createdAt","desc")
         const q = query(
           collection(db, "products"),
           where("sellerId", "==", currentSellerUid),
@@ -230,9 +228,15 @@
           const title = data.title || "未命名商品";
           const price = typeof data.price === "number" ? data.price : 0;
           const stock = typeof data.stock === "number" ? data.stock : 0;
-          const image = data.image || FALLBACK_IMG;
-          let createdText = "";
 
+          // ⭐ 封面圖：先看 image，再看 images[0]，最後才用預設圖
+          let image = data.image || "";
+          if (!image && Array.isArray(data.images) && data.images.length > 0) {
+            image = data.images[0];
+          }
+          if (!image) image = FALLBACK_IMG;
+
+          let createdText = "";
           if (data.createdAt && data.createdAt.toDate) {
             const d = data.createdAt.toDate();
             const yyyy = d.getFullYear();
@@ -276,14 +280,13 @@
           colTime.className = "prod-col-time";
           colTime.textContent = createdText;
 
-          // ⭐ 操作欄（編輯按鈕）
+          // 操作欄（編輯）
           const colActions = document.createElement("div");
           colActions.className = "prod-col-actions";
           const editBtn = document.createElement("button");
           editBtn.className = "btn-mini";
           editBtn.textContent = "編輯";
           editBtn.addEventListener("click", () => {
-            // 帶著商品 ID 跳到編輯頁
             window.location.href =
               `seller_edit_product.html?pid=${encodeURIComponent(docSnap.id)}`;
           });

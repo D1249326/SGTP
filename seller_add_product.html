@@ -38,6 +38,8 @@
     .success { margin-top:10px; color:#27ae60; font-size:14px; }
     .back { margin-top:12px; font-size:14px; }
     .back a { color:#1f354d; text-decoration:none; }
+
+    .hint { font-size:12px; color:#777; margin-top:2px; }
   </style>
 </head>
 <body>
@@ -63,9 +65,13 @@
   <label>庫存數量</label>
   <input id="stock" type="number" min="0" />
 
-  <label>商品圖片 URL</label>
-  <input id="imageUrl" type="text"
-         placeholder="貼上圖片網址，例如：https://example.com/photo.jpg" />
+  <!-- ⭐ 改成多張圖片：一行一個網址 -->
+  <label>商品圖片網址（可多張，一行一張）</label>
+  <textarea id="imageUrls"
+    placeholder="例如：
+https://example.com/photo1.jpg
+https://example.com/photo2.jpg"></textarea>
+  <div class="hint">會把每一行當成一張圖片，第一張會當作封面圖。</div>
 
   <label>商品描述</label>
   <textarea id="desc"></textarea>
@@ -134,7 +140,7 @@
     }
   });
 
-  // --- 上架商品（只寫入 Firestore，image 用 URL） ---
+  // --- 上架商品（多張 imageUrls） ---
   btnAdd.addEventListener("click", async () => {
     msgEl.textContent = "";
     okEl.textContent = "";
@@ -147,7 +153,7 @@
     const title = $("title").value.trim();
     const priceStr = $("price").value;
     const stockStr = $("stock").value;
-    const imageUrl = $("imageUrl").value.trim();
+    const imageUrlsRaw = $("imageUrls").value;
     const desc = $("desc").value.trim();
 
     if (!title || !priceStr) {
@@ -167,11 +173,14 @@
       return;
     }
 
-    // imageUrl 可以允許空白，如果你想強制要填，就把下面這段打開
-    // if (!imageUrl) {
-    //   msgEl.textContent = "請填寫商品圖片網址。";
-    //   return;
-    // }
+    // 解析多張圖片：用換行或逗號分隔
+    let images = [];
+    if (imageUrlsRaw.trim() !== "") {
+      images = imageUrlsRaw
+        .split(/\r?\n|,/)
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+    }
 
     try {
       btnAdd.disabled = true;
@@ -182,7 +191,10 @@
         title,
         price,
         stock,
-        image: imageUrl || "",   // 存在 image 欄位
+        // ⭐ 第一張當封面，給舊頁面用
+        image: images[0] || "",
+        // ⭐ 同時存整個陣列，之後可以在商品頁做輪播
+        images,
         desc,
         sellerId: currentSellerId,
         createdAt: serverTimestamp()
@@ -194,7 +206,7 @@
       $("title").value = "";
       $("price").value = "";
       $("stock").value = "";
-      $("imageUrl").value = "";
+      $("imageUrls").value = "";
       $("desc").value = "";
     } catch (err) {
       console.error(err);
