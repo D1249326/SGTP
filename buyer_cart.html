@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>SGTP - 購物車</title>
+  <style>
+    body { margin:0; font-family: Arial, sans-serif; background:#f5f5f5; }
+    header {
+      background:#1f354d; color:#fff; padding:16px 24px;
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    header h1 { margin:0; font-size:22px; }
+    .header-right a { color:#fff; text-decoration:none; margin-left:12px; font-size:14px; }
+
+    .container { max-width:960px; margin:24px auto; padding:0 16px; }
+
+    .card {
+      background:#fff; border-radius:10px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.15);
+      padding:16px 18px;
+    }
+
+    table {
+      width:100%; border-collapse:collapse;
+      margin-top:8px;
+    }
+    th, td {
+      padding:8px 6px; text-align:left; font-size:14px;
+      border-bottom:1px solid #eee;
+      vertical-align:middle;
+    }
+    th { background:#f0f0f0; font-weight:bold; }
+
+    .prod-img {
+      width:64px; height:64px; object-fit:cover; border-radius:4px; background:#eee;
+    }
+    .qty-controls {
+      display:flex; align-items:center; gap:4px;
+    }
+    .qty-btn {
+      width:24px; height:24px; border-radius:4px; border:none;
+      cursor:pointer; background:#bdc3c7; color:#2c3e50; font-size:16px;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .qty-input {
+      width:40px; text-align:center; border:1px solid #ccc;
+      border-radius:4px; padding:3px;
+    }
+    .btn-remove {
+      padding:5px 10px; border-radius:4px; border:none;
+      background:#e74c3c; color:#fff; font-size:13px; cursor:pointer;
+    }
+
+    .summary {
+      margin-top:16px; display:flex; justify-content:space-between; align-items:center;
+      flex-wrap:wrap; gap:10px;
+    }
+    .total {
+      font-size:18px; font-weight:bold; color:#c0392b;
+    }
+    .btn-row {
+      display:flex; gap:8px; flex-wrap:wrap;
+    }
+    .btn {
+      padding:8px 14px; border-radius:4px; border:none;
+      cursor:pointer; font-size:14px;
+    }
+    .btn-back { background:#bdc3c7; color:#2c3e50; }
+    .btn-checkout { background:#1f354d; color:#fff; }
+
+    .empty {
+      margin-top:20px; text-align:center; color:#777;
+    }
+    .msg {
+      margin-top:10px; font-size:14px; color:#c0392b;
+    }
+    .msg-ok { color:#27ae60; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>購物車</h1>
+  <div class="header-right">
+    <a href="buyer_shop.html">繼續逛商品</a>
+    <a href="buyer_home.html">買家資料</a>
+  </div>
+</header>
+
+<div class="container">
+  <div class="card">
+    <div id="loading">載入購物車中...</div>
+    <div id="emptyMsg" class="empty" style="display:none;">
+      購物車目前是空的，去 <a href="buyer_shop.html">逛逛商品</a> 吧！
+    </div>
+
+    <table id="cartTable" style="display:none;">
+      <thead>
+        <tr>
+          <th>商品</th>
+          <th>名稱</th>
+          <th>單價</th>
+          <th>數量</th>
+          <th>小計</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="cartBody">
+      </tbody>
+    </table>
+
+    <div class="summary" id="summary" style="display:none;">
+      <div class="total" id="totalPrice">總金額：NT$ 0</div>
+      <div class="btn-row">
+        <button class="btn btn-back" onclick="location.href='buyer_shop.html'">
+          &lt; 繼續逛逛商品
+        </button>
+        <button onclick="location.href='buyer_checkout.html'">前往結帳</button>
+        </button>
+      </div>
+    </div>
+
+    <div id="msg" class="msg"></div>
+  </div>
+</div>
+
+<script type="module">
+  import { auth, db } from "./firebase.js";
+  import {
+    onAuthStateChanged
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+  import {
+    collection, doc, getDocs, getDoc,
+    updateDoc, deleteDoc
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  const loadingEl   = document.getElementById("loading");
+  const emptyMsgEl  = document.getElementById("emptyMsg");
+  const cartTable   = document.getElementById("cartTable");
+  const cartBody    = document.getElementById("cartBody");
+  const summaryEl   = document.getElementById("summary");
+  const totalPriceEl= document.getElementById("totalPrice");
+  const msgEl       = document.getElementById("msg");
+  const btnCheckout = document.getElementById("btnCheckout");
+
+  const FALLBACK_IMG = "https://via.placeholder.com/80x80?text=No+Image";
+
+  let currentBuyerUid = null;
+
+  // 監聽登入狀態：一定要是登入買家才能看購物車
+  onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      alert("請先登入買家帳號再查看購物車。");
+      window.location.href = "buyer_login.html";
+      return;
+    }
+    currentBuyerUid = user.uid;
+    loadCart();
+  });
+
+  // 載入購物車內容
+  async function loadCart() {
+    loadingEl.style.display = "block";
+    msgEl.textContent = "";
+    msgEl.classList.remove("msg-ok");
+    cartBody.innerHTML = "";
+    cartTable.style.display = "none";
+    summaryEl.style.display = "none";
+    emptyMsgEl.style.display = "none";
+
+    try {
+      const itemsRef = collection(db, "carts", currentBuyerUid, "items");
+      const snap = await getDocs(itemsRef);
+
+      if (snap.empty) {
+        loadingEl.style.display = "none";
+        emptyMsgEl.style.display = "block";
+        totalPriceEl.textContent = "總金額：NT$ 0";
+        return;
+      }
+
+      let total = 0;
+
+      snap.forEach(docSnap => {
+        const data = docSnap.data();
+        const productId = docSnap.id;
+        const title = data.title || "未命名商品";
+        const price = typeof data.price === "number" ? data.price : 0;
+        const qty   = typeof data.qty === "number" ? data.qty : 0;
+        const image = data.image || FALLBACK_IMG;
+
+        const subtotal = price * qty;
+        total += subtotal;
+
+        const tr = document.createElement("tr");
+
+        // 商品圖片
+        const tdImg = document.createElement("td");
+        const img = document.createElement("img");
+        img.src = image;
+        img.alt = title;
+        img.className = "prod-img";
+        img.onerror = () => { img.src = FALLBACK_IMG; };
+        tdImg.appendChild(img);
+
+        // 名稱
+        const tdTitle = document.createElement("td");
+        tdTitle.textContent = title;
+
+        // 單價
+        const tdPrice = document.createElement("td");
+        tdPrice.textContent = "NT$ " + price;
+
+        // 數量（+/-）
+        const tdQty = document.createElement("td");
+        const qtyBox = document.createElement("div");
+        qtyBox.className = "qty-controls";
+
+        const btnMinus = document.createElement("button");
+        btnMinus.className = "qty-btn";
+        btnMinus.textContent = "－";
+        btnMinus.addEventListener("click", () => {
+          updateQuantity(productId, -1);
+        });
+
+        const qtyInput = document.createElement("input");
+        qtyInput.className = "qty-input";
+        qtyInput.type = "text";
+        qtyInput.value = qty;
+        qtyInput.readOnly = true;
+
+        const btnPlus = document.createElement("button");
+        btnPlus.className = "qty-btn";
+        btnPlus.textContent = "＋";
+        btnPlus.addEventListener("click", () => {
+          updateQuantity(productId, +1);
+        });
+
+        qtyBox.appendChild(btnMinus);
+        qtyBox.appendChild(qtyInput);
+        qtyBox.appendChild(btnPlus);
+        tdQty.appendChild(qtyBox);
+
+        // 小計
+        const tdSub = document.createElement("td");
+        tdSub.textContent = "NT$ " + subtotal;
+
+        // 操作（移除）
+        const tdAct = document.createElement("td");
+        const btnRemove = document.createElement("button");
+        btnRemove.className = "btn-remove";
+        btnRemove.textContent = "移除";
+        btnRemove.addEventListener("click", () => {
+          removeItem(productId);
+        });
+        tdAct.appendChild(btnRemove);
+
+        tr.appendChild(tdImg);
+        tr.appendChild(tdTitle);
+        tr.appendChild(tdPrice);
+        tr.appendChild(tdQty);
+        tr.appendChild(tdSub);
+        tr.appendChild(tdAct);
+
+        cartBody.appendChild(tr);
+      });
+
+      totalPriceEl.textContent = "總金額：NT$ " + total;
+      loadingEl.style.display = "none";
+      cartTable.style.display = "table";
+      summaryEl.style.display = "flex";
+
+    } catch (err) {
+      console.error(err);
+      loadingEl.style.display = "none";
+      msgEl.textContent = "載入購物車失敗：" + err.message;
+    }
+  }
+
+  // 更新數量（delta 可以是 +1 或 -1）
+  async function updateQuantity(productId, delta) {
+    if (!currentBuyerUid) return;
+
+    try {
+      msgEl.textContent = "";
+      msgEl.classList.remove("msg-ok");
+
+      const itemRef = doc(db, "carts", currentBuyerUid, "items", productId);
+      const snap = await getDoc(itemRef);
+      if (!snap.exists()) {
+        // 已被刪除，不用再處理
+        await loadCart();
+        return;
+      }
+
+      const data = snap.data();
+      const oldQty = typeof data.qty === "number" ? data.qty : 0;
+      const newQty = oldQty + delta;
+
+      if (newQty <= 0) {
+        // 數量 <= 0 直接刪除
+        await deleteDoc(itemRef);
+      } else {
+        await updateDoc(itemRef, { qty: newQty });
+      }
+
+      await loadCart();
+    } catch (err) {
+      console.error(err);
+      msgEl.textContent = "更新數量失敗：" + err.message;
+    }
+  }
+
+  // 移除某項商品
+  async function removeItem(productId) {
+    if (!currentBuyerUid) return;
+
+    if (!confirm("確定要從購物車移除這項商品嗎？")) {
+      return;
+    }
+
+    try {
+      const itemRef = doc(db, "carts", currentBuyerUid, "items", productId);
+      await deleteDoc(itemRef);
+      msgEl.classList.add("msg-ok");
+      msgEl.textContent = "已移除該商品。";
+      await loadCart();
+    } catch (err) {
+      console.error(err);
+      msgEl.classList.remove("msg-ok");
+      msgEl.textContent = "移除失敗：" + err.message;
+    }
+  }
+
+  // 「前往結帳」示範按鈕
+  btnCheckout.addEventListener("click", () => {
+    alert("目前是示範：這裡之後可以跳到結帳頁（例如 buyer_checkout.html），\n並將購物車內容產生成訂單。");
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>SGTP - 買家註冊（測試版）</title>
+</head>
+<body>
+  <h1>買家註冊（測試版）</h1>
+
+  <form id="signupForm">
+    <p><label>姓名：<input type="text" id="name" required></label></p>
+    <p><label>Email：<input type="email" id="email" required></label></p>
+    <p><label>密碼：<input type="password" id="password" required></label></p>
+    <p><label>確認密碼：<input type="password" id="confirmPassword" required></label></p>
+    <p><label>手機：<input type="text" id="phone"></label></p>
+    <p><label>地址：<input type="text" id="address"></label></p>
+    <button type="submit">註冊為買家</button>
+  </form>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+    import { 
+      getAuth, 
+      createUserWithEmailAndPassword, 
+      updateProfile 
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+    import {
+      getFirestore,
+      doc,
+      setDoc,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey:"AIzaSyAPeE8wvB5dhpe0f3UEbqPrpp8jhL7dat4",
+      authDomain:"sgtp-ed89d.firebaseapp.com",
+      projectId: "sgtp-ed89d",
+      storageBucket:"sgtp-ed89d.firebasestorage.app",
+      messagingSenderId: "381788847156",
+      appId: "1:381788847156:web:e48e67ad57015fdfd75e61",
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+
+    const form = document.getElementById("signupForm");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const name = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      const confirmPassword = document.getElementById("confirmPassword").value;
+      const phone = document.getElementById("phone").value.trim();
+      const address = document.getElementById("address").value.trim();
+
+      if (password !== confirmPassword) {
+        alert("兩次密碼不一致");
+        return;
+      }
+
+      try {
+        // 建立 Auth 帳號
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+
+        // 更新顯示名稱
+        await updateProfile(cred.user, { displayName: name });
+
+        // 寫入 Firestore 的 users 集合
+        await setDoc(doc(db, "users", cred.user.uid), {
+          role: "buyer",
+          name,
+          email,
+          phone,
+          address,
+          createdAt: serverTimestamp(),
+        });
+
+        alert("買家註冊成功（測試版）：" + email);
+      } catch (err) {
+        console.error("註冊或寫入 Firestore 失敗：", err);
+        alert("註冊失敗：" + err.message);
+      }
+    });
+  </script>
+</body>
+</html>

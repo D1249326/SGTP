@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>SGTP - 賣家註冊</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f7f7f7; }
+    header {
+      background:#1f354d; color:white; padding:16px 32px; font-size:22px;
+    }
+    .container {
+      max-width:480px; margin:30px auto; background:white;
+      padding:24px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.15);
+    }
+    h2 { margin-top:0; }
+    label { display:block; margin-top:12px; font-size:14px; }
+    input {
+      width:100%; padding:8px; margin-top:4px; box-sizing:border-box;
+      border-radius:4px; border:1px solid #ccc;
+    }
+    button {
+      margin-top:18px; width:100%; padding:10px;
+      background:#1f354d; color:white; border:none; border-radius:4px;
+      font-size:16px; cursor:pointer;
+    }
+    button:hover { background:#28486a; }
+    .link { margin-top:12px; font-size:14px; text-align:center; }
+    .link a { color:#1f354d; text-decoration:none; }
+    .error { margin-top:10px; color:#c0392b; font-size:14px; }
+  </style>
+</head>
+<body>
+  <header>SGTP 二手商品平台 - 賣家註冊</header>
+
+  <div class="container">
+    <h2>註冊成為賣家</h2>
+
+    <label>姓名</label>
+    <input id="name" type="text" />
+
+    <label>Email</label>
+    <input id="email" type="email" />
+
+    <label>電話</label>
+    <input id="phone" type="text" />
+
+    <label>地址</label>
+    <input id="address" type="text" />
+
+    <label>密碼</label>
+    <input id="password" type="password" />
+
+    <label>再次輸入密碼</label>
+    <input id="password2" type="password" />
+
+    <button id="btnSignup">註冊賣家帳號</button>
+
+    <div class="error" id="errorMsg"></div>
+
+    <div class="link">
+      已有賣家帳號？<a href="seller_login.html">前往賣家登入</a>
+    </div>
+    <div class="link">
+      回起始頁：<a href="index.html">首頁</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth, db } from "./firebase.js";
+    import {
+      createUserWithEmailAndPassword
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+    import {
+      doc, setDoc, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+    const $ = (id) => document.getElementById(id);
+    const btn = $("btnSignup");
+    const errorMsg = $("errorMsg");
+
+    btn.addEventListener("click", async () => {
+      errorMsg.textContent = "";
+
+      const name = $("name").value.trim();
+      const email = $("email").value.trim();
+      const phone = $("phone").value.trim();
+      const address = $("address").value.trim();
+      const pw = $("password").value;
+      const pw2 = $("password2").value;
+
+      if (!name || !email || !pw || !pw2) {
+        errorMsg.textContent = "請填寫必填欄位。";
+        return;
+      }
+      if (pw !== pw2) {
+        errorMsg.textContent = "兩次輸入的密碼不一致。";
+        return;
+      }
+
+      try {
+        btn.disabled = true;
+        btn.textContent = "註冊中...";
+
+        const userCred = await createUserWithEmailAndPassword(auth, email, pw);
+        const uid = userCred.user.uid;
+
+        await setDoc(doc(db, "users", uid), {
+          name,
+          email,
+          phone,
+          address,
+          role: "seller",
+          createdAt: serverTimestamp()
+        });
+
+        alert("賣家註冊成功！");
+        window.location.href = "seller_home.html";
+      } catch (err) {
+        console.error(err);
+        errorMsg.textContent = "註冊失敗：" + err.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "註冊賣家帳號";
+      }
+    });
+  </script>
+</body>
+</html>

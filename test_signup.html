@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>Firebase 註冊測試</title>
+</head>
+<body>
+  <h1>Firebase 註冊測試頁</h1>
+
+  <form id="signupForm">
+    <p><label>Email：<input type="email" id="email" required></label></p>
+    <p><label>密碼：<input type="password" id="password" required></label></p>
+    <button type="submit">測試註冊</button>
+  </form>
+
+  <script type="module">
+    // 直接在這一頁初始化 Firebase（先不用 firebase.js）
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword } 
+      from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey:"AIzaSyAPeE8wvB5dhpe0f3UEbqPrpp8jhL7dat4",
+      authDomain:"sgtp-ed89d.firebaseapp.com",
+      projectId: "sgtp-ed89d",
+      storageBucket:"sgtp-ed89d.firebasestorage.app",
+      messagingSenderId: "381788847156",
+      appId: "1:381788847156:web:e48e67ad57015fdfd75e61",
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    const form = document.getElementById("signupForm");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        console.log("註冊成功", cred.user);
+        alert("註冊成功：" + cred.user.email);
+      } catch (err) {
+        console.error("註冊失敗", err);
+        alert("註冊失敗：" + err.message);
+      }
+    });
+  </script>
+</body>
+</html>

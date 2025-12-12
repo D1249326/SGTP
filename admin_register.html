@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>SGTP - 管理者註冊</title>
+  <style>
+    body {
+      margin:0;
+      background:#eef1f4;
+      font-family: Arial, sans-serif;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      height:100vh;
+    }
+    .card {
+      width:360px;
+      background:white;
+      padding:24px;
+      border-radius:10px;
+      box-shadow:0 2px 10px rgba(0,0,0,0.15);
+    }
+    h2 { text-align:center; margin-top:0; }
+    label { display:block; margin-top:12px; }
+    input {
+      width:100%;
+      padding:8px;
+      margin-top:4px;
+      border:1px solid #ccc;
+      border-radius:4px;
+      font-size:14px;
+    }
+    .btn {
+      width:100%;
+      padding:10px;
+      margin-top:16px;
+      border:none;
+      border-radius:6px;
+      background:#1f354d;
+      color:white;
+      font-size:16px;
+      cursor:pointer;
+    }
+    .msg { margin-top:12px; font-size:14px; color:#c0392b; }
+    .link { margin-top:10px; text-align:center; }
+    .link a { color:#1f354d; text-decoration:none; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2>建立管理者帳號</h2>
+
+  <label>姓名</label>
+  <input id="name" type="text">
+
+  <label>Email</label>
+  <input id="email" type="email">
+
+  <label>密碼</label>
+  <input id="password" type="password">
+
+  <button id="btnRegister" class="btn">註冊</button>
+
+  <div id="msg" class="msg"></div>
+
+  <div class="link">
+    <a href="admin_login.html">已有管理者帳號？登入</a>
+  </div>
+</div>
+
+<script type="module">
+  import { auth, db } from "./firebase.js";
+  import {
+    createUserWithEmailAndPassword
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+  import {
+    setDoc,
+    doc
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  const btnRegister = document.getElementById("btnRegister");
+  const msg = document.getElementById("msg");
+
+  btnRegister.addEventListener("click", async () => {
+    msg.textContent = "";
+
+    const name  = document.getElementById("name").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const pwd   = document.getElementById("password").value.trim();
+
+    if (!name || !email || !pwd) {
+      msg.textContent = "請填寫所有欄位。";
+      return;
+    }
+
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, pwd);
+      const user = result.user;
+
+      // 將角色寫入 Firestore
+      await setDoc(doc(db, "users", user.uid), {
+        name,
+        email,
+        role: "admin",
+        createdAt: new Date()
+      });
+
+      alert("管理者帳號已建立！");
+      window.location.href = "admin_login.html";
+
+    } catch (err) {
+      msg.textContent = "註冊失敗：" + err.message;
+    }
+  });
+
+</script>
+
+</body>
+</html>

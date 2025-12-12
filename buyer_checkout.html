@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>SGTP - 結帳</title>
+  <style>
+    body {
+      margin:0;
+      font-family: Arial, sans-serif;
+      background:#f5f5f5;
+    }
+    header {
+      background:#1f354d;
+      color:white;
+      padding:16px 24px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    }
+    header h1 { margin:0; font-size:22px; }
+    header .right button { margin-left:8px; }
+
+    .btn {
+      padding:8px 14px;
+      border:none;
+      border-radius:4px;
+      cursor:pointer;
+      font-size:14px;
+    }
+    .btn-light {
+      background:#ffffff;
+      color:#1f354d;
+    }
+    .btn-danger {
+      background:#c0392b;
+      color:white;
+    }
+    .btn-primary {
+      background:#1f354d;
+      color:white;
+    }
+
+    .container {
+      max-width:960px;
+      margin:24px auto;
+      background:white;
+      border-radius:8px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.15);
+      padding:24px;
+    }
+
+    h2 { margin-top:0; }
+
+    .section {
+      margin-top:16px;
+    }
+
+    table {
+      width:100%;
+      border-collapse:collapse;
+      font-size:14px;
+    }
+    th, td {
+      border-bottom:1px solid #eee;
+      padding:8px;
+      text-align:left;
+    }
+    th {
+      background:#f0f3f6;
+    }
+    td.price, td.qty, td.subtotal, td.center {
+      text-align:right;
+    }
+
+    .total-row td {
+      font-weight:bold;
+      border-top:2px solid #ccc;
+    }
+
+    .form-row {
+      margin:8px 0;
+    }
+    .form-row label {
+      display:inline-block;
+      width:90px;
+      color:#555;
+    }
+    .form-row input {
+      width:260px;
+      padding:6px 8px;
+      border-radius:4px;
+      border:1px solid #ccc;
+      font-size:14px;
+      box-sizing:border-box;
+    }
+    .msg {
+      margin-top:10px;
+      font-size:14px;
+      color:#c0392b;
+    }
+    .msg-ok {
+      color:#27ae60;
+    }
+    .note {
+      margin-top:6px;
+      font-size:12px;
+      color:#777;
+    }
+    .empty {
+      margin-top:10px;
+      color:#777;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>SGTP 二手商品平台 - 結帳</h1>
+  <div class="right">
+    <button class="btn btn-light" onclick="location.href='buyer_cart.html'">← 回購物車</button>
+    <button class="btn btn-light" onclick="location.href='buyer_shop.html'">逛逛其他商品</button>
+    <button id="btnLogout" class="btn btn-danger">登出</button>
+  </div>
+</header>
+
+<div class="container">
+  <h2>訂單確認</h2>
+
+  <!-- 購物車項目 -->
+  <div class="section">
+    <h3>購物車內容</h3>
+    <div id="cartEmpty" class="empty" style="display:none;">
+      購物車目前是空的，請先回購物車頁面或商品列表選購商品。
+    </div>
+    <div id="cartTableWrap" style="overflow-x:auto; display:none;">
+      <table>
+        <thead>
+          <tr>
+            <th>商品名稱</th>
+            <th class="price">單價 (NT$)</th>
+            <th class="qty">數量</th>
+            <th class="subtotal">小計 (NT$)</th>
+          </tr>
+        </thead>
+        <tbody id="cartBody"></tbody>
+        <tfoot>
+          <tr class="total-row">
+            <td colspan="3" style="text-align:right;">總金額</td>
+            <td class="subtotal" id="totalAmount">0</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- 收件資訊 -->
+  <div class="section">
+    <h3>收件資訊</h3>
+    <div class="form-row">
+      <label for="shipName">收件人姓名</label>
+      <input id="shipName" type="text" />
+    </div>
+    <div class="form-row">
+      <label for="shipPhone">聯絡電話</label>
+      <input id="shipPhone" type="text" />
+    </div>
+    <div class="form-row">
+      <label for="shipAddress">收件地址</label>
+      <input id="shipAddress" type="text" style="width:360px;" />
+    </div>
+    <div class="note">
+      <!-- 可放一些出貨說明 -->
+    </div>
+  </div>
+
+  <!-- 送出訂單 -->
+  <div class="section">
+    <button id="btnSubmitOrder" class="btn btn-primary">送出訂單</button>
+    <div id="msg" class="msg"></div>
+  </div>
+
+</div>
+
+<script type="module">
+  import { auth, db } from "./firebase.js";
+  import {
+    onAuthStateChanged,
+    signOut
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+  import {
+    collection,
+    doc,
+    getDoc,
+    getDocs,
+    addDoc,
+    deleteDoc,
+    serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  const btnLogout      = document.getElementById("btnLogout");
+  const cartEmptyEl    = document.getElementById("cartEmpty");
+  const cartTableWrap  = document.getElementById("cartTableWrap");
+  const cartBody       = document.getElementById("cartBody");
+  const totalAmountEl  = document.getElementById("totalAmount");
+
+  const shipNameInput  = document.getElementById("shipName");
+  const shipPhoneInput = document.getElementById("shipPhone");
+  const shipAddrInput  = document.getElementById("shipAddress");
+
+  const btnSubmitOrder = document.getElementById("btnSubmitOrder");
+  const msgEl          = document.getElementById("msg");
+
+  let currentUserAuth = null;
+  let currentUserData = null;
+  // ⭐ cartItems 現在會包含 sellerId
+  let cartItems       = [];   // {id, title, price, qty, image, sellerId}
+
+  // 登出
+  btnLogout.addEventListener("click", async () => {
+    try {
+      await signOut(auth);
+      alert("已登出");
+      window.location.href = "buyer_login.html";
+    } catch (err) {
+      console.error(err);
+      alert("登出失敗：" + err.message);
+    }
+  });
+
+  // 監聽登入狀態
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      alert("請先登入買家帳號");
+      window.location.href = "buyer_login.html";
+      return;
+    }
+    currentUserAuth = user;
+
+    try {
+      // 撈 Firestore 的使用者資料，確認角色是 buyer
+      const userRef = doc(db, "users", user.uid);
+      const snap = await getDoc(userRef);
+      if (!snap.exists()) {
+        alert("找不到此使用者資料，請重新登入");
+        await signOut(auth);
+        window.location.href = "buyer_login.html";
+        return;
+      }
+      const data = snap.data();
+      currentUserData = data;
+
+      if (data.role !== "buyer") {
+        alert("此帳號不是買家角色，無法使用結帳功能");
+        await signOut(auth);
+        window.location.href = "buyer_login.html";
+        return;
+      }
+
+      // 帶入預設收件資訊
+      shipNameInput.value  = data.name    || "";
+      shipPhoneInput.value = data.phone   || "";
+      shipAddrInput.value  = data.address || "";
+
+      // 載入購物車
+      await loadCartItems();
+    } catch (err) {
+      console.error(err);
+      alert("讀取使用者資料失敗：" + err.message);
+    }
+  });
+
+  // 讀取購物車 items
+  async function loadCartItems() {
+    cartItems = [];
+    cartBody.innerHTML = "";
+    totalAmountEl.textContent = "0";
+    cartEmptyEl.style.display = "none";
+    cartTableWrap.style.display = "none";
+
+    try {
+      const itemsRef = collection(db, "carts", currentUserAuth.uid, "items");
+      const snap = await getDocs(itemsRef);
+
+      if (snap.empty) {
+        cartEmptyEl.style.display = "block";
+        return;
+      }
+
+      let total = 0;
+
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const item = {
+          id: docSnap.id,
+          title: d.title || "未命名商品",
+          price: typeof d.price === "number" ? d.price : 0,
+          qty: typeof d.qty === "number" ? d.qty : 1,
+          image: d.image || "",
+          sellerId: d.sellerId || null   // ⭐ 從購物車文件讀出 sellerId
+        };
+        cartItems.push(item);
+
+        const tr = document.createElement("tr");
+        const sub = item.price * item.qty;
+        total += sub;
+
+        tr.innerHTML = `
+          <td>${item.title}</td>
+          <td class="price">${item.price}</td>
+          <td class="qty">${item.qty}</td>
+          <td class="subtotal">${sub}</td>
+        `;
+        cartBody.appendChild(tr);
+      });
+
+      totalAmountEl.textContent = total;
+      cartTableWrap.style.display = "block";
+
+    } catch (err) {
+      console.error(err);
+      cartEmptyEl.style.display = "block";
+      cartEmptyEl.textContent = "載入購物車時發生錯誤：" + err.message;
+    }
+  }
+
+  // 送出訂單
+  btnSubmitOrder.addEventListener("click", async () => {
+    msgEl.textContent = "";
+    msgEl.classList.remove("msg-ok");
+
+    if (!currentUserAuth) {
+      alert("尚未確認登入狀態，請重新登入");
+      return;
+    }
+    if (!cartItems.length) {
+      msgEl.textContent = "購物車目前是空的，無法建立訂單。";
+      return;
+    }
+
+    const shipName  = shipNameInput.value.trim();
+    const shipPhone = shipPhoneInput.value.trim();
+    const shipAddr  = shipAddrInput.value.trim();
+
+    if (!shipName || !shipPhone || !shipAddr) {
+      msgEl.textContent = "請完整填寫收件人姓名、電話與地址。";
+      return;
+    }
+
+    // 計算總金額 + 準備 items
+    let total = 0;
+    const orderItems = cartItems.map(it => {
+      const sub = it.price * it.qty;
+      total += sub;
+      return {
+        productId: it.id,
+        title: it.title,
+        price: it.price,
+        qty: it.qty,
+        image: it.image,
+        sellerId: it.sellerId || null   // ⭐ 每個 item 也保留 sellerId
+      };
+    });
+
+    // ⭐ 一張訂單暫時假設只會有同一個賣家
+    const firstSellerId = cartItems[0].sellerId || null;
+
+    try {
+      btnSubmitOrder.disabled = true;
+      btnSubmitOrder.textContent = "訂單建立中...";
+
+      // 建立訂單
+      const ordersRef = collection(db, "orders");
+      await addDoc(ordersRef, {
+        buyerId: currentUserAuth.uid,
+        buyerEmail: currentUserAuth.email,
+        sellerId: firstSellerId,         // ⭐ 關鍵：在訂單文件最外層寫入 sellerId
+        createdAt: serverTimestamp(),
+        status: "pending",               // 之後可以做：paid / shipped / completed / canceled
+        totalAmount: total,
+        shipName,
+        shipPhone,
+        shipAddress: shipAddr,
+        items: orderItems
+      });
+
+      // 清空購物車（刪除 carts/{uid}/items 底下所有文件）
+      const itemsRef = collection(db, "carts", currentUserAuth.uid, "items");
+      const snap = await getDocs(itemsRef);
+      const deletions = [];
+      snap.forEach(docSnap => {
+        deletions.push(deleteDoc(doc(itemsRef, docSnap.id)));
+      });
+      await Promise.all(deletions);
+
+      msgEl.classList.add("msg-ok");
+      msgEl.textContent = "訂單建立成功！感謝您的購買。";
+
+      // 建議導到「我的訂單」頁
+      setTimeout(() => {
+        window.location.href = "buyer_orders.html";
+      }, 2000);
+
+    } catch (err) {
+      console.error(err);
+      msgEl.textContent = "建立訂單失敗：" + err.message;
+    } finally {
+      btnSubmitOrder.disabled = false;
+      btnSubmitOrder.textContent = "送出訂單";
+    }
+  });
+</script>
+</body>
+</html>

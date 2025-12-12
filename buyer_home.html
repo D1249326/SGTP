@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>SGTP - 買家首頁</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f7f7f7;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      background: #1f354d;
+      color: white;
+      padding: 20px 40px;
+      font-size: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header .right button {
+      margin-left: 10px;
+    }
+    .btn {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .btn-light {
+      background: #ffffff;
+      color: #1f354d;
+    }
+    .btn-danger {
+      background: #c0392b;
+      color: white;
+    }
+    .btn-primary {
+      background: #1f354d;
+      color: white;
+    }
+    .btn-secondary {
+      background: #bdc3c7;
+      color: #2c3e50;
+    }
+    .container {
+      max-width: 900px;
+      margin: 40px auto;
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    h2 { margin-top: 0; }
+    .info-row {
+      margin: 8px 0;
+    }
+    .label {
+      display: inline-block;
+      width: 80px;
+      color: #555;
+    }
+    .edit-section {
+      margin-top: 20px;
+      padding-top: 15px;
+      border-top: 1px solid #eee;
+    }
+    .edit-row {
+      margin: 8px 0;
+    }
+    .edit-row label {
+      display: inline-block;
+      width: 80px;
+      color: #555;
+    }
+    .edit-row input {
+      width: 260px;
+      padding: 6px 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+    .msg {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #c0392b;
+    }
+    .msg-ok {
+      color: #27ae60;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>SGTP 二手商品平台 - 買家首頁</div>
+    <div class="right">
+      <!-- ⭐ 這顆改成回到 buyer_shop.html -->
+      <button id="btnToShop" class="btn btn-light" onclick="location.href='buyer_shop.html'">
+        前往商品列表
+      </button>
+      <button id="btnLogout" class="btn btn-danger">
+        登出
+      </button>
+    </div>
+  </header>
+
+  <div class="container">
+    <h2 id="welcome">歡迎，買家！</h2>
+
+    <!-- 顯示用 -->
+    <div id="displaySection">
+      <div class="info-row">
+        <span class="label">姓名：</span>
+        <span id="buyerName">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Email：</span>
+        <span id="buyerEmail">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">電話：</span>
+        <span id="buyerPhone">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">地址：</span>
+        <span id="buyerAddress">-</span>
+      </div>
+      <div class="info-row">
+        <span class="label">角色：</span>
+        <span id="buyerRole">-</span>
+      </div>
+
+      <button id="btnEdit" class="btn btn-light" style="margin-top:16px;">
+        ✏ 編輯資料
+      </button>
+    </div>
+
+    <!-- 編輯區 -->
+    <div id="editSection" class="edit-section" style="display:none;">
+      <h3>編輯個人資料</h3>
+
+      <div class="edit-row">
+        <label for="editName">姓名：</label>
+        <input id="editName" type="text" />
+      </div>
+      <div class="edit-row">
+        <label for="editEmail">Email：</label>
+        <input id="editEmail" type="email" />
+      </div>
+      <div class="edit-row">
+        <label for="editPhone">電話：</label>
+        <input id="editPhone" type="text" />
+      </div>
+      <div class="edit-row">
+        <label for="editAddress">地址：</label>
+        <input id="editAddress" type="text" />
+      </div>
+
+      <hr style="margin:14px 0;" />
+
+      <div class="edit-row">
+        <label for="editPassword">密碼：</label>
+        <input id="editPassword" type="password" placeholder="請輸入目前密碼（驗證用）" />
+      </div>
+
+      <div style="margin-top:12px;">
+        <button id="btnSave" class="btn btn-primary">儲存變更</button>
+        <button id="btnCancel" class="btn btn-secondary" style="margin-left:8px;">取消</button>
+      </div>
+
+      <div id="msg" class="msg"></div>
+    </div>
+
+    <hr />
+
+    <p>（此頁為買家個人資料中心，可編輯基本資料。未來可加上：訂單查詢、購物車快捷入口等。）</p>
+  </div>
+
+  <script type="module">
+    import { auth, db } from "./firebase.js";
+    import {
+      onAuthStateChanged,
+      signOut,
+      updateEmail,
+      reauthenticateWithCredential,
+      EmailAuthProvider
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+    import {
+      doc,
+      getDoc,
+      updateDoc
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+    const buyerName    = document.getElementById("buyerName");
+    const buyerEmail   = document.getElementById("buyerEmail");
+    const buyerPhone   = document.getElementById("buyerPhone");
+    const buyerAddress = document.getElementById("buyerAddress");
+    const buyerRole    = document.getElementById("buyerRole");
+    const welcome      = document.getElementById("welcome");
+
+    const btnLogout    = document.getElementById("btnLogout");
+    const btnEdit      = document.getElementById("btnEdit");
+
+    const displaySection = document.getElementById("displaySection");
+    const editSection    = document.getElementById("editSection");
+
+    const editName      = document.getElementById("editName");
+    const editEmail     = document.getElementById("editEmail");
+    const editPhone     = document.getElementById("editPhone");
+    const editAddress   = document.getElementById("editAddress");
+    const editPassword  = document.getElementById("editPassword");
+    const btnSave       = document.getElementById("btnSave");
+    const btnCancel     = document.getElementById("btnCancel");
+    const msgEl         = document.getElementById("msg");
+
+    let currentUserData = null; // Firestore 裡的使用者資料
+    let currentUserAuth = null; // Firebase Auth 的使用者
+
+    // 1. 監聽登入狀態，如果沒登入就踢回登入頁
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        alert("請先登入買家帳號");
+        window.location.href = "buyer_login.html";
+        return;
+      }
+
+      currentUserAuth = user;
+
+      try {
+        // 2. 從 Firestore 撈出使用者資料
+        const userDocRef = doc(db, "users", user.uid);
+        const snap = await getDoc(userDocRef);
+
+        if (!snap.exists()) {
+          alert("找不到此使用者的資料，請重新登入。");
+          await signOut(auth);
+          window.location.href = "buyer_login.html";
+          return;
+        }
+
+        const data = snap.data();
+        currentUserData = data;
+
+        if (data.role !== "buyer") {
+          alert("此帳號角色不是『買家』，無法進入買家首頁。");
+          await signOut(auth);
+          window.location.href = "buyer_login.html";
+          return;
+        }
+
+        // 3. 將資料顯示在頁面上
+        buyerName.textContent    = data.name    || "(未填)";
+        buyerEmail.textContent   = data.email   || user.email;
+        buyerPhone.textContent   = data.phone   || "(未填)";
+        buyerAddress.textContent = data.address || "(未填)";
+        buyerRole.textContent    = data.role    || "(未設定)";
+
+        welcome.textContent = "歡迎，" + (data.name || user.email) + "！";
+
+      } catch (err) {
+        console.error(err);
+        alert("讀取使用者資料失敗：" + err.message);
+      }
+    });
+
+    // 打開編輯模式
+    btnEdit.addEventListener("click", () => {
+      if (!currentUserData || !currentUserAuth) return;
+
+      msgEl.textContent = "";
+      msgEl.classList.remove("msg-ok");
+
+      // 用目前顯示的資料填入 input
+      editName.value    = currentUserData.name    || currentUserAuth.email || "";
+      editEmail.value   = currentUserData.email   || currentUserAuth.email || "";
+      editPhone.value   = currentUserData.phone   || "";
+      editAddress.value = currentUserData.address || "";
+      editPassword.value = "";
+
+      displaySection.style.display = "none";
+      editSection.style.display = "block";
+    });
+
+    // 取消編輯
+    btnCancel.addEventListener("click", () => {
+      editSection.style.display = "none";
+      displaySection.style.display = "block";
+      msgEl.textContent = "";
+      msgEl.classList.remove("msg-ok");
+    });
+
+    // 儲存變更（需要先輸入目前密碼進行 re-auth）
+    btnSave.addEventListener("click", async () => {
+      msgEl.textContent = "";
+      msgEl.classList.remove("msg-ok");
+
+      if (!currentUserAuth) {
+        alert("尚未確認登入狀態，請重新登入。");
+        return;
+      }
+
+      const newName    = editName.value.trim();
+      const newEmail   = editEmail.value.trim();
+      const newPhone   = editPhone.value.trim();
+      const newAddress = editAddress.value.trim();
+      const password   = editPassword.value;
+
+      if (!newName || !newEmail) {
+        msgEl.textContent = "姓名與 Email 不可空白。";
+        return;
+      }
+      if (!password) {
+        msgEl.textContent = "請輸入目前密碼以驗證身分。";
+        return;
+      }
+
+      try {
+        btnSave.disabled = true;
+        btnSave.textContent = "儲存中...";
+
+        const currentEmail = currentUserAuth.email;
+        // 1️⃣ 使用目前 email + 密碼 重新驗證
+        const credential = EmailAuthProvider.credential(currentEmail, password);
+        await reauthenticateWithCredential(currentUserAuth, credential);
+
+        // 2️⃣ 如果 Email 有改，更新 Auth 上的 email
+        if (newEmail !== currentEmail) {
+          await updateEmail(currentUserAuth, newEmail);
+        }
+
+        // 3️⃣ 更新 Firestore 裡的使用者資料
+        const userDocRef = doc(db, "users", currentUserAuth.uid);
+        await updateDoc(userDocRef, {
+          name: newName,
+          email: newEmail,
+          phone: newPhone,
+          address: newAddress
+        });
+
+        // 更新目前記憶的資料與畫面
+        currentUserData = {
+          ...currentUserData,
+          name: newName,
+          email: newEmail,
+          phone: newPhone,
+          address: newAddress
+        };
+
+        buyerName.textContent    = newName || "(未填)";
+        buyerEmail.textContent   = newEmail;
+        buyerPhone.textContent   = newPhone || "(未填)";
+        buyerAddress.textContent = newAddress || "(未填)";
+        welcome.textContent      = "歡迎，" + (newName || newEmail) + "！";
+
+        msgEl.classList.add("msg-ok");
+        msgEl.textContent = "資料已成功更新！";
+
+        // 關閉編輯區，回到顯示區
+        setTimeout(() => {
+          editSection.style.display = "none";
+          displaySection.style.display = "block";
+          msgEl.textContent = "";
+          msgEl.classList.remove("msg-ok");
+        }, 1000);
+
+      } catch (err) {
+        console.error(err);
+        if (err.code === "auth/wrong-password") {
+          msgEl.textContent = "密碼錯誤，請再試一次。";
+        } else if (err.code === "auth/too-many-requests") {
+          msgEl.textContent = "嘗試次數過多，請稍後再試。";
+        } else if (err.code === "auth/email-already-in-use") {
+          msgEl.textContent = "此 Email 已被其他帳號使用。";
+        } else {
+          msgEl.textContent = "更新失敗：" + err.message;
+        }
+      } finally {
+        btnSave.disabled = false;
+        btnSave.textContent = "儲存變更";
+      }
+    });
+
+    // 4. 登出功能
+    btnLogout.addEventListener("click", async () => {
+      try {
+        await signOut(auth);
+        alert("已登出");
+        window.location.href = "buyer_login.html";
+      } catch (err) {
+        console.error(err);
+        alert("登出失敗：" + err.message);
+      }
+    });
+  </script>
+</body>
+</html>

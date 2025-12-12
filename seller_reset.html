@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>SGTP – 賣家忘記密碼</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f7f7f7; margin:0; }
+    header {
+      background:#1f354d; color:white; padding:16px 32px;
+      font-size:22px;
+    }
+    .container {
+      max-width:420px; margin:40px auto; background:white;
+      padding:24px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.15);
+    }
+    h2 { margin-top:0; }
+    label { display:block; margin-top:12px; font-size:14px; }
+    input {
+      width:100%; padding:8px; margin-top:4px;
+      border-radius:4px; border:1px solid #ccc; box-sizing:border-box;
+    }
+    button {
+      margin-top:18px; width:100%; padding:10px;
+      background:#1f354d; color:white; border:none; border-radius:4px;
+      font-size:16px; cursor:pointer;
+    }
+    button:hover { background:#28486a; }
+    .info { margin-top:12px; color:#27ae60; font-size:14px; }
+    .error { margin-top:12px; color:#c0392b; font-size:14px; }
+    .link { margin-top:18px; font-size:14px; text-align:center; }
+    .link a { color:#1f354d; text-decoration:none; }
+  </style>
+</head>
+<body>
+
+  <header>SGTP 二手商品平台 – 賣家重設密碼</header>
+
+  <div class="container">
+    <h2>寄送密碼重設信</h2>
+
+    <label>Email（需為註冊賣家帳號）</label>
+    <input id="email" type="email" placeholder="example@gmail.com">
+
+    <button id="btnReset">寄送重設密碼連結</button>
+
+    <div class="info" id="infoMsg"></div>
+    <div class="error" id="errorMsg"></div>
+
+    <div class="link">
+      <a href="seller_login.html">返回賣家登入</a>
+    </div>
+    <div class="link">
+      <a href="index.html">回首頁</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth } from "./firebase.js";
+    import {
+      sendPasswordResetEmail
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+    const btnReset = document.getElementById("btnReset");
+    const infoMsg  = document.getElementById("infoMsg");
+    const errorMsg = document.getElementById("errorMsg");
+
+    btnReset.addEventListener("click", async () => {
+      infoMsg.textContent = "";
+      errorMsg.textContent = "";
+
+      const email = document.getElementById("email").value.trim();
+      if (!email) {
+        errorMsg.textContent = "請輸入 Email。";
+        return;
+      }
+
+      try {
+        btnReset.disabled = true;
+        btnReset.textContent = "寄送中...";
+
+        await sendPasswordResetEmail(auth, email);
+
+        infoMsg.textContent =
+          "已成功寄出密碼重置信件，請至 Email 收信。如未收到請查看垃圾信件匣。";
+      } catch (err) {
+        console.error(err);
+        errorMsg.textContent = "寄送失敗：" + err.message;
+      } finally {
+        btnReset.disabled = false;
+        btnReset.textContent = "寄送重設密碼連結";
+      }
+    });
+  </script>
+
+</body>
+</html>

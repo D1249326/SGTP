@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>SGTP - 賣家登入</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f7f7f7; }
+    header {
+      background:#1f354d; color:white; padding:16px 32px; font-size:22px;
+    }
+    .container {
+      max-width:420px; margin:30px auto; background:white;
+      padding:24px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.15);
+    }
+    h2 { margin-top:0; }
+    label { display:block; margin-top:12px; font-size:14px; }
+    input {
+      width:100%; padding:8px; margin-top:4px;
+      border-radius:4px; border:1px solid #ccc; box-sizing:border-box;
+    }
+    button {
+      margin-top:18px; width:100%; padding:10px;
+      background:#1f354d; color:white; border:none; border-radius:4px;
+      font-size:16px; cursor:pointer;
+    }
+    button:hover { background:#28486a; }
+    .link { margin-top:12px; font-size:14px; text-align:center; }
+    .link a { color:#1f354d; text-decoration:none; }
+    .error { margin-top:10px; color:#c0392b; font-size:14px; }
+  </style>
+</head>
+<body>
+  <header>SGTP 二手商品平台 - 賣家登入</header>
+
+  <div class="container">
+    <h2>賣家登入</h2>
+
+    <label>Email</label>
+    <input id="email" type="email" />
+
+    <label>密碼</label>
+    <input id="password" type="password" />
+
+    <button id="btnLogin">登入</button>
+
+    <div class="error" id="errorMsg"></div>
+
+    <div class="link">
+      還沒有賣家帳號？<a href="seller_signup.html">註冊賣家</a>
+    </div>
+    <div class="link">
+      回起始頁：<a href="index.html">首頁</a>
+    </div>
+    <div class="link">
+  <a href="seller_reset.html">忘記密碼？</a>
+</div>
+
+  </div>
+
+  <script type="module">
+    import { auth, db } from "./firebase.js";
+    import {
+      signInWithEmailAndPassword,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+    import {
+      doc, getDoc
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+    const $ = (id) => document.getElementById(id);
+    const btn = $("btnLogin");
+    const errorMsg = $("errorMsg");
+
+    btn.addEventListener("click", async () => {
+      errorMsg.textContent = "";
+
+      const email = $("email").value.trim();
+      const pw = $("password").value;
+
+      if (!email || !pw) {
+        errorMsg.textContent = "請輸入 Email 與密碼。";
+        return;
+      }
+
+      try {
+        btn.disabled = true;
+        btn.textContent = "登入中...";
+
+        const cred = await signInWithEmailAndPassword(auth, email, pw);
+        const uid = cred.user.uid;
+
+        // 確認此帳號是 seller
+        const userRef = doc(db, "users", uid);
+        const snap = await getDoc(userRef);
+        if (!snap.exists()) {
+          await signOut(auth);
+          throw new Error("找不到使用者資料。");
+        }
+        const data = snap.data();
+        if (data.role !== "seller") {
+          await signOut(auth);
+          throw new Error("此帳號不是賣家角色，請改用買家/管理員登入。");
+        }
+
+        alert("賣家登入成功！");
+        window.location.href = "seller_home.html";
+      } catch (err) {
+        console.error(err);
+        errorMsg.textContent = "登入失敗：" + err.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "登入";
+      }
+    });
+  </script>
+</body>
+</html>

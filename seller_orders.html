@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>SGTP 二手商品平台 - 賣家訂單管理</title>
+  <style>
+    body {
+      margin:0;
+      font-family: Arial, sans-serif;
+      background:#f5f5f5;
+    }
+    header {
+      background:#1f354d;
+      color:white;
+      padding:16px 24px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    }
+    header h1 { margin:0; font-size:22px; }
+    header .right button { margin-left:8px; }
+
+    .btn {
+      padding:6px 12px;
+      border:none;
+      border-radius:4px;
+      font-size:14px;
+      cursor:pointer;
+    }
+    .btn-light { background:#ffffff; color:#1f354d; }
+    .btn-danger { background:#c0392b; color:#fff; }
+    .btn-primary { background:#1f354d; color:#fff; }
+    .btn-small {
+      padding:4px 8px;
+      font-size:12px;
+      border-radius:4px;
+      border:none;
+      cursor:pointer;
+    }
+    .btn-accept {
+      background:#27ae60;
+      color:white;
+    }
+    .btn-reject {
+      background:#e67e22;
+      color:white;
+    }
+
+    .container {
+      max-width:1100px;
+      margin:24px auto;
+      padding:0 16px;
+    }
+
+    .card {
+      background:white;
+      border-radius:8px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.1);
+      padding:16px 20px;
+      margin-bottom:16px;
+    }
+    .empty {
+      margin-top:16px;
+      color:#777;
+    }
+
+    .order-header {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:6px;
+    }
+    .order-id {
+      font-weight:bold;
+      font-size:15px;
+    }
+
+    .badge {
+      display:inline-block;
+      padding:2px 8px;
+      border-radius:10px;
+      font-size:12px;
+      color:white;
+    }
+    .badge-pending { background:#e67e22; }
+    .badge-paid { background:#2980b9; }
+    .badge-shipped { background:#16a085; }
+    .badge-completed { background:#2ecc71; }
+    .badge-canceled { background:#7f8c8d; }
+    .badge-cancel-req { background:#f39c12; }
+    .badge-cancel-rej { background:#c0392b; }
+
+    .order-meta {
+      font-size:13px;
+      color:#555;
+      margin-bottom:4px;
+    }
+    .order-total {
+      font-weight:bold;
+      margin-top:4px;
+    }
+    .order-actions {
+      margin-top:6px;
+    }
+    .items-list {
+      margin-top:8px;
+      font-size:13px;
+      border-top:1px solid #eee;
+      padding-top:6px;
+    }
+    .note {
+      font-size:13px;
+      color:#777;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>SGTP 二手商品平台 - 賣家訂單管理</h1>
+  <div class="right">
+    <button class="btn btn-light" onclick="location.href='seller_home.html'">回賣家後台</button>
+    <button id="btnLogout" class="btn btn-danger">登出</button>
+  </div>
+</header>
+
+<div class="container">
+  <div class="card" style="margin-bottom:20px;">
+    <h2>我的訂單（賣家）</h2>
+    <p class="note">
+      只會顯示 <b>目前登入賣家</b> 的訂單。可以在「狀態」欄位中直接修改： 
+      <span class="badge badge-pending">pending</span> →
+      <span class="badge badge-paid">已付款</span> →
+      <span class="badge badge-shipped">已出貨</span> →
+      <span class="badge badge-completed">已完成</span><br/>
+      若買家提出取消，會顯示 <span class="badge badge-cancel-req">取消申請中</span>，
+      可按「同意取消」或「拒絕取消」。
+    </p>
+  </div>
+
+  <div id="ordersEmpty" class="empty" style="display:none;">目前沒有任何訂單。</div>
+  <div id="ordersWrap"></div>
+</div>
+
+<script type="module">
+  import { auth, db } from "./firebase.js";
+  import {
+    onAuthStateChanged,
+    signOut
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+  import {
+    collection,
+    query,
+    where,
+    orderBy,
+    getDocs,
+    doc,
+    updateDoc,
+    serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  const btnLogout   = document.getElementById("btnLogout");
+  const ordersEmpty = document.getElementById("ordersEmpty");
+  const ordersWrap  = document.getElementById("ordersWrap");
+
+  let currentSellerUid = null;
+
+  // 登出
+  btnLogout.addEventListener("click", async () => {
+    try {
+      await signOut(auth);
+      alert("已登出");
+      window.location.href = "seller_login.html";
+    } catch (err) {
+      console.error(err);
+      alert("登出失敗：" + err.message);
+    }
+  });
+
+  // 監聽登入
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      alert("請先登入賣家帳號");
+      window.location.href = "seller_login.html";
+      return;
+    }
+    currentSellerUid = user.uid;
+    await loadOrders();
+  });
+
+  function formatDate(ts) {
+    if (!ts || !ts.toDate) return "-";
+    const d = ts.toDate();
+    const yyyy = d.getFullYear();
+    const mm   = String(d.getMonth()+1).padStart(2,"0");
+    const dd   = String(d.getDate()).padStart(2,"0");
+    const hh   = String(d.getHours()).padStart(2,"0");
+    const mi   = String(d.getMinutes()).padStart(2,"0");
+    return `${yyyy}/${mm}/${dd} ${hh}:${mi}`;
+  }
+
+  function getStatusBadge(data) {
+    const span = document.createElement("span");
+    span.classList.add("badge");
+
+    if (data.status === "canceled" || data.cancelStatus === "approved") {
+      span.classList.add("badge-canceled");
+      span.textContent = "已取消";
+      return span;
+    }
+    if (data.cancelStatus === "requested") {
+      span.classList.add("badge-cancel-req");
+      span.textContent = "取消申請中";
+      return span;
+    }
+    if (data.cancelStatus === "rejected") {
+      span.classList.add("badge-cancel-rej");
+      span.textContent = "取消被拒絕";
+      return span;
+    }
+
+    switch (data.status) {
+      case "pending":
+        span.classList.add("badge-pending");
+        span.textContent = "pending";
+        break;
+      case "paid":
+        span.classList.add("badge-paid");
+        span.textContent = "已付款";
+        break;
+      case "shipped":
+        span.classList.add("badge-shipped");
+        span.textContent = "已出貨";
+        break;
+      case "completed":
+        span.classList.add("badge-completed");
+        span.textContent = "已完成";
+        break;
+      default:
+        span.classList.add("badge-pending");
+        span.textContent = data.status || "unknown";
+    }
+    return span;
+  }
+
+  async function loadOrders() {
+    ordersWrap.innerHTML = "";
+    ordersEmpty.style.display = "none";
+
+    try {
+      // 這裡假設每筆訂單根據 items 中 sellerId 來存一個 sellerIds 陣列，
+      // 查詢時用 array-contains。
+      const q = query(
+        collection(db, "orders"),
+        where("sellerIds", "array-contains", currentSellerUid),
+        orderBy("createdAt", "desc")
+      );
+      const snap = await getDocs(q);
+
+      if (snap.empty) {
+        ordersEmpty.style.display = "block";
+        return;
+      }
+
+      snap.forEach(docSnap => {
+        const data = docSnap.data();
+        const card = document.createElement("div");
+        card.className = "card";
+
+        const header = document.createElement("div");
+        header.className = "order-header";
+
+        const idDiv = document.createElement("div");
+        idDiv.className = "order-id";
+        idDiv.textContent = "訂單編號：" + docSnap.id;
+
+        const badge = getStatusBadge(data);
+        header.appendChild(idDiv);
+        header.appendChild(badge);
+
+        const meta1 = document.createElement("div");
+        meta1.className = "order-meta";
+        meta1.textContent = "訂單日期：" + formatDate(data.createdAt);
+
+        const meta2 = document.createElement("div");
+        meta2.className = "order-meta";
+        meta2.textContent = "買家：" + (data.buyerEmail || data.buyerId || "");
+
+        const meta3 = document.createElement("div");
+        meta3.className = "order-meta";
+        meta3.textContent = "收件人：" + (data.shipName || "") + "，電話：" +
+                            (data.shipPhone || "") + "，地址：" + (data.shipAddress || "");
+
+        const totalDiv = document.createElement("div");
+        totalDiv.className = "order-total";
+        totalDiv.textContent = "訂單總額：NT$ " + (data.totalAmount || 0);
+
+        const actions = document.createElement("div");
+        actions.className = "order-actions";
+
+        // 若有取消申請，可同意 / 拒絕
+        if (data.cancelStatus === "requested" && data.status !== "canceled") {
+          const info = document.createElement("div");
+          info.className = "order-meta";
+          info.textContent = "買家已提出取消申請" + (data.cancelReason ? `（原因：${data.cancelReason}）` : "") + "。";
+          actions.appendChild(info);
+
+          const btnOk = document.createElement("button");
+          btnOk.className = "btn-small btn-accept";
+          btnOk.textContent = "同意取消";
+          btnOk.style.marginRight = "6px";
+          btnOk.addEventListener("click", () => approveCancel(docSnap.id));
+
+          const btnNo = document.createElement("button");
+          btnNo.className = "btn-small btn-reject";
+          btnNo.textContent = "拒絕取消";
+          btnNo.addEventListener("click", () => rejectCancel(docSnap.id));
+
+          actions.appendChild(btnOk);
+          actions.appendChild(btnNo);
+        } else if (data.cancelStatus === "approved" || data.status === "canceled") {
+          const info = document.createElement("div");
+          info.className = "order-meta";
+          info.textContent = "此訂單已取消。";
+          actions.appendChild(info);
+        } else if (data.cancelStatus === "rejected") {
+          const info = document.createElement("div");
+          info.className = "order-meta";
+          info.textContent = "已拒絕取消申請。";
+          actions.appendChild(info);
+        }
+
+        // 商品列表（只顯示屬於這個 seller 的商品）
+        const itemsDiv = document.createElement("div");
+        itemsDiv.className = "items-list";
+
+        if (Array.isArray(data.items)) {
+          data.items
+            .filter(it => !it.sellerId || it.sellerId === currentSellerUid)
+            .forEach(it => {
+              const line = document.createElement("div");
+              line.textContent = `${it.title || "商品"} x ${it.qty || 1}（單價 NT$ ${it.price || 0}）`;
+              itemsDiv.appendChild(line);
+            });
+        } else {
+          itemsDiv.textContent = "（無商品明細）";
+        }
+
+        card.appendChild(header);
+        card.appendChild(meta1);
+        card.appendChild(meta2);
+        card.appendChild(meta3);
+        card.appendChild(totalDiv);
+        card.appendChild(actions);
+        card.appendChild(itemsDiv);
+
+        ordersWrap.appendChild(card);
+      });
+
+    } catch (err) {
+      console.error(err);
+      alert("讀取訂單錯誤：" + err.message);
+    }
+  }
+
+  // 同意取消
+  async function approveCancel(orderId) {
+    const ok = confirm("確定要『同意取消』這筆訂單嗎？\n此動作會將訂單狀態設為已取消。");
+    if (!ok) return;
+
+    try {
+      await updateDoc(doc(db, "orders", orderId), {
+        cancelStatus: "approved",
+        status: "canceled",
+        canceledBy: currentSellerUid,
+        canceledAt: serverTimestamp()
+      });
+      alert("已同意取消訂單。");
+      await loadOrders();
+    } catch (err) {
+      console.error(err);
+      alert("同意取消失敗：" + err.message);
+    }
+  }
+
+  // 拒絕取消
+  async function rejectCancel(orderId) {
+    const ok = confirm("確定要『拒絕取消』這筆訂單嗎？");
+    if (!ok) return;
+
+    try {
+      await updateDoc(doc(db, "orders", orderId), {
+        cancelStatus: "rejected"
+      });
+      alert("已拒絕取消申請。");
+      await loadOrders();
+    } catch (err) {
+      console.error(err);
+      alert("拒絕取消失敗：" + err.message);
+    }
+  }
+</script>
+</body>
+</html>

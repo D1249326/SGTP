@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>SGTP 後台管理 - 買家資料表</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f7f7f7;
+    }
+
+    header {
+      background: #1f354d;
+      color: white;
+      padding: 20px 40px;
+      font-size: 26px;
+      font-weight: bold;
+    }
+
+    .container {
+      padding: 40px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h2 {
+      margin: 0 0 15px 0;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 20px;
+      gap: 10px;
+    }
+
+    #searchBox {
+      flex: 1;
+      min-width: 250px;
+      padding: 8px;
+      border-radius: 5px;
+      border: 1px solid #aaa;
+    }
+
+    .filter-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn-filter {
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: 1px solid #1f354d;
+      background: white;
+      color: #1f354d;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .btn-filter.active {
+      background: #1f354d;
+      color: white;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+    }
+
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #ddd;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    th {
+      background: #2d4b66;
+      color: white;
+    }
+
+    tr:hover {
+      background: #f0f4ff;
+    }
+
+    .no-data {
+      text-align: center;
+      padding: 20px;
+      color: #777;
+      background: white;
+    }
+
+    .btn-delete {
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: none;
+      background: #c0392b;
+      color: white;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .btn-delete:hover {
+      background: #e74c3c;
+    }
+  </style>
+</head>
+<body>
+
+<header>SGTP 後台管理 - 買家資料表（正式版）</header>
+
+<div class="container">
+  <h2>使用者列表</h2>
+
+  <div class="toolbar">
+    <input type="text" id="searchBox" placeholder="搜尋姓名或 Email..." />
+    <div class="filter-group">
+      <button class="btn-filter active" data-role="all">全部角色</button>
+      <button class="btn-filter" data-role="buyer">只看買家</button>
+      <button class="btn-filter" data-role="seller">只看賣家</button>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>姓名</th>
+        <th>Email</th>
+        <th>電話</th>
+        <th>地址</th>
+        <th>註冊日期</th>
+        <th>role</th>
+        <th>操作</th> <!-- 新增操作欄 -->
+      </tr>
+    </thead>
+    <tbody id="userTable"></tbody>
+  </table>
+
+  <div id="noData" class="no-data" style="display:none;">
+    尚未有任何使用者資料。
+  </div>
+</div>
+
+<script type="module">
+  import { db } from "./firebase.js";
+  import {
+    collection,
+    getDocs,
+    deleteDoc,
+    doc
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  const searchBox = document.getElementById("searchBox");
+  const userTable = document.getElementById("userTable");
+  const noDataBox = document.getElementById("noData");
+  const filterButtons = document.querySelectorAll(".btn-filter");
+
+  let allUsers = [];
+  let currentRoleFilter = "all";
+
+  // 1. 初始化：載入所有使用者
+  async function loadUsers() {
+    try {
+      const snap = await getDocs(collection(db, "users"));
+      allUsers = [];
+
+      snap.forEach((docSnap) => {
+        allUsers.push({
+          id: docSnap.id,   // Firestore 文件 id (通常就是 uid)
+          ...docSnap.data()
+        });
+      });
+
+      applyFilterAndRender();
+    } catch (err) {
+      console.error("讀取 Firestore 失敗：", err);
+      noDataBox.style.display = "block";
+      noDataBox.textContent = "讀取資料失敗：" + err.message;
+    }
+  }
+
+  // 2. 根據搜尋關鍵字 + 角色篩選後再渲染表格
+  function applyFilterAndRender() {
+    const keyword = searchBox.value.toLowerCase().trim();
+
+    let filtered = allUsers;
+
+    // 角色篩選
+    if (currentRoleFilter !== "all") {
+      filtered = filtered.filter((u) => (u.role || "").toLowerCase() === currentRoleFilter);
+    }
+
+    // 關鍵字搜尋（姓名、Email）
+    if (keyword) {
+      filtered = filtered.filter((u) =>
+        (u.name || "").toLowerCase().includes(keyword) ||
+        (u.email || "").toLowerCase().includes(keyword)
+      );
+    }
+
+    renderTable(filtered);
+  }
+
+  // 3. 把資料放進表格
+  function renderTable(list) {
+    userTable.innerHTML = "";
+
+    if (!list.length) {
+      noDataBox.style.display = "block";
+      return;
+    }
+
+    noDataBox.style.display = "none";
+
+    list.forEach((user) => {
+      const tr = document.createElement("tr");
+
+      let createdText = "-";
+      if (user.createdAt && user.createdAt.toDate) {
+        createdText = user.createdAt.toDate().toLocaleString();
+      }
+
+      tr.innerHTML = `
+        <td>${user.name || "-"}</td>
+        <td>${user.email || "-"}</td>
+        <td>${user.phone || "-"}</td>
+        <td>${user.address || "-"}</td>
+        <td>${createdText}</td>
+        <td>${user.role || "-"}</td>
+        <td>
+          <button class="btn-delete" data-id="${user.id}">
+            刪除
+          </button>
+        </td>
+      `;
+
+      userTable.appendChild(tr);
+    });
+  }
+
+  // 4. 監聽搜尋框
+  searchBox.addEventListener("input", () => {
+    applyFilterAndRender();
+  });
+
+  // 5. 監聽角色篩選按鈕
+  filterButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      filterButtons.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      currentRoleFilter = btn.getAttribute("data-role");
+      applyFilterAndRender();
+    });
+  });
+
+  // 6. 監聽刪除按鈕（事件委派）
+  userTable.addEventListener("click", async (e) => {
+    const target = e.target;
+    if (!target.classList.contains("btn-delete")) return;
+
+    const uid = target.getAttribute("data-id");
+    const user = allUsers.find(u => u.id === uid);
+
+    const nameOrEmail = user ? (user.name || user.email || uid) : uid;
+
+    const ok = window.confirm(`確定要刪除「${nameOrEmail}」這筆使用者資料嗎？\n（將會刪除 Firestore 中的 users/${uid}，但 Authentication 仍保留）`);
+    if (!ok) return;
+
+    try {
+      await deleteDoc(doc(db, "users", uid));
+      // 從 allUsers 陣列移除
+      allUsers = allUsers.filter(u => u.id !== uid);
+      applyFilterAndRender();
+      alert("已刪除此使用者的資料（Firestore）。");
+    } catch (err) {
+      console.error(err);
+      alert("刪除失敗：" + err.message);
+    }
+  });
+
+  // 7. 頁面載入時載入資料
+  loadUsers();
+</script>
+
+</body>
+</html>

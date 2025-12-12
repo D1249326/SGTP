@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>SGTP - 買家註冊</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f7f7f7;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      background: #1f354d;
+      color: white;
+      padding: 20px 40px;
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .container {
+      max-width: 500px;
+      margin: 50px auto;
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    h2 {
+      margin-top: 0;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    label {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    input[type="text"],
+    input[type="email"],
+    input[type="password"] {
+      width: 100%;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #aaa;
+      margin-top: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 15px;
+      border: none;
+      border-radius: 4px;
+      background: #1f354d;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #28486a;
+    }
+    .link {
+      margin-top: 15px;
+      text-align: center;
+      font-size: 14px;
+    }
+    a { color: #1f354d; text-decoration: none; }
+    .error-msg {
+      color: #c0392b;
+      margin-top: 10px;
+      font-size: 14px;
+      min-height: 18px;
+    }
+    .success-msg {
+      color: #27ae60;
+      margin-top: 10px;
+      font-size: 14px;
+      min-height: 18px;
+    }
+  </style>
+</head>
+<body>
+  <header>SGTP 二手商品平台 - 買家註冊</header>
+
+  <div class="container">
+    <h2>買家註冊</h2>
+
+    <form id="signupForm">
+      <label>
+        姓名：
+        <input type="text" id="name" required />
+      </label>
+
+      <label>
+        Email：
+        <input type="email" id="email" required />
+      </label>
+
+      <label>
+        密碼：
+        <input type="password" id="password" required minlength="6" />
+      </label>
+
+      <label>
+        電話：
+        <input type="text" id="phone" />
+      </label>
+
+      <label>
+        地址：
+        <input type="text" id="address" />
+      </label>
+
+      <button type="submit">註冊買家帳號</button>
+
+      <div id="success" class="success-msg"></div>
+      <div id="error" class="error-msg"></div>
+    </form>
+
+    <div class="link">
+      已經有買家帳號？<a href="buyer_login.html">前往登入</a>
+    </div>
+    <div class="link">
+      回首頁：<a href="index.html">起始頁</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth, db } from "./firebase.js";
+    import {
+      createUserWithEmailAndPassword
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+    import {
+      doc,
+      setDoc,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+    const form = document.getElementById("signupForm");
+    const successBox = document.getElementById("success");
+    const errorBox = document.getElementById("error");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      successBox.textContent = "";
+      errorBox.textContent = "";
+
+      const name = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      const phone = document.getElementById("phone").value.trim();
+      const address = document.getElementById("address").value.trim();
+
+      try {
+        // 1. 建立 Firebase Auth 帳號
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+
+        // 2. 在 Firestore 的 users 集合中建立對應紀錄
+        const uid = cred.user.uid;
+        const userRef = doc(db, "users", uid);
+
+        await setDoc(userRef, {
+          name,
+          email,
+          phone,
+          address,
+          role: "buyer",
+          createdAt: serverTimestamp()
+        });
+
+        successBox.textContent = "註冊成功！即將前往買家首頁…";
+
+        // 3. 短暫停一下再跳轉
+        setTimeout(() => {
+          window.location.href = "buyer_home.html";
+        }, 1000);
+      } catch (err) {
+        errorBox.textContent = "註冊失敗：" + err.message;
+      }
+    });
+  </script>
+</body>
+</html>

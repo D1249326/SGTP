@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>SGTP - 編輯商品</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f7f7f7; }
+    header {
+      background:#1f354d; color:white; padding:18px 32px;
+      font-size:22px; display:flex; justify-content:space-between; align-items:center;
+    }
+    .user-info { font-size:14px; }
+    .btn {
+      padding:6px 12px; border-radius:4px; border:none;
+      cursor:pointer; font-size:14px; margin-left:8px;
+    }
+    .btn-light { background:#ffffff; color:#1f354d; }
+    .btn-danger { background:#c0392b; color:white; }
+
+    .container {
+      max-width:600px; margin:30px auto; background:white;
+      padding:24px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.15);
+    }
+    h2 { margin-top:0; }
+
+    label { display:block; margin-top:12px; font-size:14px; }
+    input, textarea {
+      width:100%; padding:8px; margin-top:4px; box-sizing:border-box;
+      border-radius:4px; border:1px solid #ccc; font-family:inherit;
+    }
+    textarea { min-height:90px; resize:vertical; }
+
+    .main-btn {
+      margin-top:18px; width:100%; padding:10px;
+      background:#1f354d; color:white; border:none; border-radius:4px;
+      font-size:16px; cursor:pointer;
+    }
+    .main-btn:hover { background:#28486a; }
+
+    .msg-error { margin-top:10px; color:#c0392b; font-size:14px; }
+    .msg-ok    { margin-top:10px; color:#27ae60; font-size:14px; }
+
+    .back-link { margin-top:12px; font-size:14px; }
+    .back-link a { color:#1f354d; text-decoration:none; }
+  </style>
+</head>
+<body>
+<header>
+  <div>SGTP 二手商品平台 - 編輯商品</div>
+  <div class="user-info">
+    <span id="userName">賣家</span>
+    <button class="btn btn-light" onclick="location.href='seller_home.html'">回賣家後台</button>
+    <button id="btnLogout" class="btn btn-danger">登出</button>
+  </div>
+</header>
+
+<div class="container">
+  <h2 id="titleBar">編輯商品</h2>
+
+  <div id="loading">載入中...</div>
+  <div id="notFound" style="display:none; color:#c0392b;">找不到此商品，或你無權編輯。</div>
+
+  <div id="formArea" style="display:none;">
+    <label>商品名稱</label>
+    <!-- ⭐ 已經可以編輯，不再 disabled -->
+    <input id="prodTitle" type="text" />
+
+    <label>價格 (NT$)</label>
+    <input id="prodPrice" type="number" min="0" />
+
+    <label>庫存數量</label>
+    <input id="prodStock" type="number" min="0" />
+
+    <label>商品描述（可選）</label>
+    <textarea id="prodDesc"></textarea>
+
+    <button id="btnSave" class="main-btn">儲存變更</button>
+
+    <div id="msgError" class="msg-error"></div>
+    <div id="msgOk" class="msg-ok"></div>
+
+    <div class="back-link">
+      <a href="seller_home.html">&lt; 返回賣家後台</a>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { auth, db } from "./firebase.js";
+  import {
+    onAuthStateChanged,
+    signOut
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+  import {
+    doc, getDoc, updateDoc, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  const $ = id => document.getElementById(id);
+
+  const userNameSpan = $("userName");
+  const btnLogout    = $("btnLogout");
+
+  const loadingEl = $("loading");
+  const notFoundEl = $("notFound");
+  const formArea   = $("formArea");
+
+  const titleBar   = $("titleBar");
+  const titleInput = $("prodTitle");
+  const priceInput = $("prodPrice");
+  const stockInput = $("prodStock");
+  const descInput  = $("prodDesc");
+  const btnSave    = $("btnSave");
+
+  const msgErrorEl = $("msgError");
+  const msgOkEl    = $("msgOk");
+
+  // 拿 URL 的 pid
+  const params = new URLSearchParams(window.location.search);
+  const pid = params.get("pid");
+
+  let currentSellerUid = null;
+
+  if (!pid) {
+    loadingEl.style.display = "none";
+    notFoundEl.style.display = "block";
+  }
+
+  // 1. 確認登入、角色是 seller
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      alert("請先登入賣家帳號");
+      window.location.href = "seller_login.html";
+      return;
+    }
+    try {
+      const userRef = doc(db, "users", user.uid);
+      const snap = await getDoc(userRef);
+      if (!snap.exists() || snap.data().role !== "seller") {
+        alert("此帳號不是賣家角色");
+        await signOut(auth);
+        window.location.href = "seller_login.html";
+        return;
+      }
+      currentSellerUid = user.uid;
+      userNameSpan.textContent = snap.data().name || snap.data().email || "賣家";
+
+      if (pid) {
+        await loadProduct();
+      }
+    } catch (err) {
+      console.error(err);
+      alert("讀取使用者資料失敗：" + err.message);
+      window.location.href = "seller_login.html";
+    }
+  });
+
+  // 2. 載入商品資料
+  async function loadProduct() {
+    try {
+      const pRef = doc(db, "products", pid);
+      const snap = await getDoc(pRef);
+
+      loadingEl.style.display = "none";
+
+      if (!snap.exists()) {
+        notFoundEl.style.display = "block";
+        return;
+      }
+
+      const data = snap.data();
+
+      // 只允許「自己的商品」編輯
+      if (!data.sellerId || data.sellerId !== currentSellerUid) {
+        notFoundEl.textContent = "你不是此商品的賣家，無法編輯。";
+        notFoundEl.style.display = "block";
+        return;
+      }
+
+      // 填入欄位
+      titleInput.value = data.title || "";
+      priceInput.value = (typeof data.price === "number") ? data.price : "";
+      stockInput.value = (typeof data.stock === "number") ? data.stock : "";
+      descInput.value  = data.desc || "";
+
+      titleBar.textContent = "編輯商品 - " + (data.title || "(未命名)");
+
+      formArea.style.display = "block";
+    } catch (err) {
+      console.error(err);
+      loadingEl.style.display = "none";
+      notFoundEl.textContent = "載入商品發生錯誤：" + err.message;
+      notFoundEl.style.display = "block";
+    }
+  }
+
+  // 3. 儲存變更（更新 title / price / stock / desc）
+  btnSave.addEventListener("click", async () => {
+    msgErrorEl.textContent = "";
+    msgOkEl.textContent = "";
+
+    const title   = titleInput.value.trim();
+    const priceStr = priceInput.value;
+    const stockStr = stockInput.value;
+
+    if (!title) {
+      msgErrorEl.textContent = "請填寫商品名稱。";
+      return;
+    }
+    if (priceStr === "" || stockStr === "") {
+      msgErrorEl.textContent = "請填寫價格與庫存數量。";
+      return;
+    }
+
+    const price = Number(priceStr);
+    const stock = Number(stockStr);
+
+    if (isNaN(price) || price < 0) {
+      msgErrorEl.textContent = "價格格式不正確。";
+      return;
+    }
+    if (isNaN(stock) || stock < 0) {
+      msgErrorEl.textContent = "庫存格式不正確。";
+      return;
+    }
+
+    try {
+      btnSave.disabled = true;
+      btnSave.textContent = "儲存中...";
+
+      const pRef = doc(db, "products", pid);
+      await updateDoc(pRef, {
+        title,
+        price,
+        stock,
+        desc: descInput.value.trim(),
+        updatedAt: serverTimestamp()
+      });
+
+      msgOkEl.textContent = "已成功更新商品資料！";
+      titleBar.textContent = "編輯商品 - " + title;
+    } catch (err) {
+      console.error(err);
+      msgErrorEl.textContent = "更新失敗：" + err.message;
+    } finally {
+      btnSave.disabled = false;
+      btnSave.textContent = "儲存變更";
+    }
+  });
+
+  // 4. 登出
+  btnLogout.addEventListener("click", async () => {
+    try {
+      await signOut(auth);
+      window.location.href = "seller_login.html";
+    } catch (err) {
+      console.error(err);
+      alert("登出失敗：" + err.message);
+    }
+  });
+</script>
+</body>
+</html>

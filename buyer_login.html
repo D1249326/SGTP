@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>SGTP - 買家登入</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f7f7f7;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      background: #1f354d;
+      color: white;
+      padding: 20px 40px;
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .container {
+      max-width: 400px;
+      margin: 60px auto;
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    h2 {
+      margin-top: 0;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    label {
+      display: block;
+      margin-bottom: 10px;
+    }
+    input[type="email"],
+    input[type="password"] {
+      width: 100%;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #aaa;
+      margin-top: 4px;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 15px;
+      border: none;
+      border-radius: 4px;
+      background: #1f354d;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #28486a;
+    }
+    .link {
+      margin-top: 15px;
+      text-align: center;
+    }
+    a { color: #1f354d; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header>SGTP 二手商品平台 - 買家登入</header>
+
+  <div class="container">
+    <h2>買家登入</h2>
+    <form id="loginForm">
+      <label>
+        Email：
+        <input type="email" id="email" required />
+      </label>
+      <label>
+        密碼：
+        <input type="password" id="password" required />
+      </label>
+      <button type="submit">登入</button>
+    </form>
+
+    <div class="link">
+      還沒有買家帳號？<a href="buyer_signup.html">前往買家註冊</a>
+    </div>
+    <div class="link">
+      回首頁：<a href="index.html">起始頁</a>
+    </div>
+    <div class="link">
+  忘記密碼？<a href="buyer_forgot_password.html">點此重新設定</a>
+</div>
+ </div>
+
+
+
+
+  <script type="module">
+    import { auth, db } from "./firebase.js";
+    import {
+      signInWithEmailAndPassword,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+    import {
+      doc,
+      getDoc
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+    const form = document.getElementById("loginForm");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+
+      try {
+        // 1. 用 Email/密碼登入
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+
+        // 2. 從 Firestore 取出該使用者資料，確認是否為 buyer
+        const userDocRef = doc(db, "users", cred.user.uid);
+        const userSnap = await getDoc(userDocRef);
+
+        if (!userSnap.exists()) {
+          alert("此帳號在資料庫中找不到對應資料。");
+          await signOut(auth);
+          return;
+        }
+
+        const data = userSnap.data();
+        if (data.role !== "buyer") {
+          alert("此帳號不是『買家』角色，無法從買家入口登入。");
+          await signOut(auth);
+          return;
+        }
+
+        alert("登入成功，歡迎 " + (data.name || email) + "！");
+        // 3. 導向買家首頁
+        window.location.href = "buyer_shop.html";
+      } catch (err) {
+        console.error(err);
+        alert("登入失敗：" + err.message);
+      }
+    });
+  </script>
+</body>
+</html>

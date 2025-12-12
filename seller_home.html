@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>SGTP - 賣家首頁</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f7f7f7; }
+    header {
+      background:#1f354d; color:white; padding:18px 32px;
+      font-size:22px; display:flex; justify-content:space-between; align-items:center;
+    }
+    .user-info { font-size:14px; }
+    .btn {
+      padding:6px 12px; border-radius:4px; border:none;
+      cursor:pointer; font-size:14px; margin-left:8px;
+    }
+    .btn-light { background:#ffffff; color:#1f354d; }
+    .btn-danger { background:#c0392b; color:white; }
+
+    .container {
+      max-width:1000px; margin:30px auto; background:white;
+      padding:24px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.15);
+    }
+    h2 { margin-top:0; }
+    .info { margin-top:10px; font-size:14px; color:#555; }
+
+    .card-list { margin-top:20px; }
+    .link-btn {
+      display:inline-block; margin-right:12px; margin-bottom:12px;
+      padding:10px 16px; background:#1f354d; color:white;
+      border-radius:4px; text-decoration:none; font-size:14px;
+    }
+    .link-btn:hover { background:#28486a; }
+
+    /* --- 商品列表樣式 --- */
+    .section-title {
+      margin-top:24px;
+      font-size:18px;
+      font-weight:bold;
+    }
+    .prod-list {
+      margin-top:12px;
+    }
+    .prod-list-header {
+      display:flex;
+      font-size:14px;
+      font-weight:bold;
+      border-bottom:1px solid #ddd;
+      padding-bottom:6px;
+    }
+    .prod-row {
+      display:flex;
+      align-items:center;
+      padding:8px 0;
+      border-bottom:1px solid #f0f0f0;
+      font-size:14px;
+    }
+    .prod-col-img   { width:80px; flex-shrink:0; }
+    .prod-col-title { flex:2; padding-right:8px; }
+    .prod-col-price { width:100px; text-align:right; }
+    .prod-col-stock { width:80px; text-align:right; }
+    .prod-col-time  { width:160px; font-size:12px; color:#777; text-align:right; }
+
+    /* ⭐ 操作欄 & 小按鈕 */
+    .prod-col-actions { width:90px; text-align:center; }
+
+    .btn-mini {
+      padding:4px 8px;
+      font-size:12px;
+      border-radius:4px;
+      border:none;
+      background:#1f354d;
+      color:white;
+      cursor:pointer;
+    }
+    .btn-mini:hover { background:#28486a; }
+
+    .prod-img {
+      width:64px; height:64px; object-fit:cover;
+      border-radius:4px; background:#eee;
+    }
+
+    .empty {
+      margin-top:10px; color:#777; font-size:14px;
+    }
+    .small-note {
+      margin-top:4px; font-size:12px; color:#999;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>SGTP 二手商品平台 - 賣家後台</div>
+    <div class="user-info">
+      <span id="userName">賣家</span>
+      <button class="btn btn-light" onclick="location.href='seller_orders.html'">查看訂單</button>
+      <button class="btn btn-light" onclick="location.href='index.html'">回起始頁</button>
+      <button id="btnLogout" class="btn btn-danger">登出</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <h2>歡迎來到賣家後台</h2>
+    <p class="info">在這裡你可以上架商品，也可以看到自己已上架的商品。</p>
+
+    <div class="card-list">
+      <a href="seller_add_product.html" class="link-btn">➕ 上架新商品</a>
+      <!-- 未來可以再加：訂單管理、商品管理頁面 -->
+    </div>
+
+    <!-- ⭐ 賣家已上架的商品列表 -->
+    <div class="my-products">
+      <div class="section-title">我已上架的商品</div>
+      <div id="prodEmpty" class="empty" style="display:none;">
+        目前還沒有上架任何商品，點上方「➕ 上架新商品」來新增吧！
+      </div>
+
+      <div id="prodList" class="prod-list" style="display:none;">
+        <div class="prod-list-header">
+          <div class="prod-col-img">圖片</div>
+          <div class="prod-col-title">商品名稱</div>
+          <div class="prod-col-price">價格</div>
+          <div class="prod-col-stock">庫存</div>
+          <div class="prod-col-time">建立時間</div>
+          <div class="prod-col-actions">操作</div>
+        </div>
+        <div id="prodRows"></div>
+      </div>
+
+      <div id="prodNote" class="small-note" style="display:none;">
+        * 僅顯示此賣家帳號所上架的商品（依建立時間排序，新到舊）。
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth, db } from "./firebase.js";
+    import {
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+    import {
+      doc, getDoc,
+      collection, query, where, getDocs, orderBy   // ⭐ 有引入 orderBy
+    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+    const userNameSpan = document.getElementById("userName");
+    const btnLogout = document.getElementById("btnLogout");
+
+    const prodEmptyEl = document.getElementById("prodEmpty");
+    const prodListEl  = document.getElementById("prodList");
+    const prodRowsEl  = document.getElementById("prodRows");
+    const prodNoteEl  = document.getElementById("prodNote");
+
+    const FALLBACK_IMG = "https://via.placeholder.com/80x80?text=No+Image";
+
+    let currentSellerUid = null;
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        alert("請先登入賣家帳號");
+        window.location.href = "seller_login.html";
+        return;
+      }
+      try {
+        const userRef = doc(db, "users", user.uid);
+        const snap = await getDoc(userRef);
+        if (!snap.exists()) {
+          alert("找不到使用者資料，請重新登入");
+          await signOut(auth);
+          window.location.href = "seller_login.html";
+          return;
+        }
+        const data = snap.data();
+        if (data.role !== "seller") {
+          alert("此帳號不是賣家角色");
+          await signOut(auth);
+          window.location.href = "seller_login.html";
+          return;
+        }
+        userNameSpan.textContent = data.name || data.email || "賣家";
+
+        currentSellerUid = user.uid;
+        // ⭐ 確認是賣家之後載入商品
+        loadMyProducts();
+      } catch (err) {
+        console.error(err);
+        alert("讀取使用者資料失敗：" + err.message);
+        window.location.href = "seller_login.html";
+      }
+    });
+
+    // 登出
+    btnLogout.addEventListener("click", async () => {
+      try {
+        await signOut(auth);
+        window.location.href = "seller_login.html";
+      } catch (err) {
+        console.error(err);
+        alert("登出失敗：" + err.message);
+      }
+    });
+
+    // ⭐ 載入此賣家上架的商品
+    async function loadMyProducts() {
+      if (!currentSellerUid) return;
+
+      prodRowsEl.innerHTML = "";
+      prodEmptyEl.style.display = "none";
+      prodListEl.style.display  = "none";
+      prodNoteEl.style.display  = "none";
+
+      try {
+        // 👉 有排序：where + orderBy("createdAt","desc")
+        const q = query(
+          collection(db, "products"),
+          where("sellerId", "==", currentSellerUid),
+          orderBy("createdAt", "desc")
+        );
+
+        const snap = await getDocs(q);
+
+        if (snap.empty) {
+          prodEmptyEl.style.display = "block";
+          return;
+        }
+
+        snap.forEach(docSnap => {
+          const data = docSnap.data();
+          const title = data.title || "未命名商品";
+          const price = typeof data.price === "number" ? data.price : 0;
+          const stock = typeof data.stock === "number" ? data.stock : 0;
+          const image = data.image || FALLBACK_IMG;
+          let createdText = "";
+
+          if (data.createdAt && data.createdAt.toDate) {
+            const d = data.createdAt.toDate();
+            const yyyy = d.getFullYear();
+            const mm   = String(d.getMonth() + 1).padStart(2, "0");
+            const dd   = String(d.getDate()).padStart(2, "0");
+            const hh   = String(d.getHours()).padStart(2, "0");
+            const mi   = String(d.getMinutes()).padStart(2, "0");
+            createdText = `${yyyy}/${mm}/${dd} ${hh}:${mi}`;
+          }
+
+          const row = document.createElement("div");
+          row.className = "prod-row";
+
+          // 圖片
+          const colImg = document.createElement("div");
+          colImg.className = "prod-col-img";
+          const imgEl = document.createElement("img");
+          imgEl.className = "prod-img";
+          imgEl.src = image;
+          imgEl.alt = title;
+          imgEl.onerror = () => { imgEl.src = FALLBACK_IMG; };
+          colImg.appendChild(imgEl);
+
+          // 名稱
+          const colTitle = document.createElement("div");
+          colTitle.className = "prod-col-title";
+          colTitle.textContent = title;
+
+          // 價格
+          const colPrice = document.createElement("div");
+          colPrice.className = "prod-col-price";
+          colPrice.textContent = "NT$ " + price;
+
+          // 庫存
+          const colStock = document.createElement("div");
+          colStock.className = "prod-col-stock";
+          colStock.textContent = stock;
+
+          // 建立時間
+          const colTime = document.createElement("div");
+          colTime.className = "prod-col-time";
+          colTime.textContent = createdText;
+
+          // ⭐ 操作欄（編輯按鈕）
+          const colActions = document.createElement("div");
+          colActions.className = "prod-col-actions";
+          const editBtn = document.createElement("button");
+          editBtn.className = "btn-mini";
+          editBtn.textContent = "編輯";
+          editBtn.addEventListener("click", () => {
+            // 帶著商品 ID 跳到編輯頁
+            window.location.href =
+              `seller_edit_product.html?pid=${encodeURIComponent(docSnap.id)}`;
+          });
+          colActions.appendChild(editBtn);
+
+          row.appendChild(colImg);
+          row.appendChild(colTitle);
+          row.appendChild(colPrice);
+          row.appendChild(colStock);
+          row.appendChild(colTime);
+          row.appendChild(colActions);
+
+          prodRowsEl.appendChild(row);
+        });
+
+        prodListEl.style.display = "block";
+        prodNoteEl.style.display = "block";
+
+      } catch (err) {
+        console.error(err);
+        alert("載入商品列表失敗：" + err.message);
+      }
+    }
+  </script>
+</body>
+</html>

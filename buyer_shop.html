@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>SGTP - 商品列表</title>
+  <style>
+    body { margin:0; font-family: Arial, sans-serif; background:#f5f5f5; }
+    header {
+      background:#1f354d; color:#fff; padding:16px 24px;
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    header h1 { margin:0; font-size:22px; }
+    .header-right { font-size:14px; }
+    .header-right a { color:#fff; text-decoration:none; margin-left:12px; }
+
+    .container { max-width:960px; margin:24px auto; padding:0 16px; }
+    .search-bar { margin-bottom:16px; }
+    .search-input {
+      width:100%; padding:8px; border-radius:4px;
+      border:1px solid #ccc; box-sizing:border-box;
+    }
+
+    .grid {
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap:16px;
+    }
+    .card {
+      background:#fff; border-radius:8px; overflow:hidden;
+      box-shadow:0 2px 6px rgba(0,0,0,0.12);
+      display:flex; flex-direction:column;
+      transition:0.2s ease;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow:0 4px 10px rgba(0,0,0,0.16);
+    }
+    .card-img-wrapper {
+      width:100%; height:160px; overflow:hidden;
+      background:#eee;
+      display:flex; justify-content:center; align-items:center;
+    }
+    .card-img-wrapper img {
+      width:100%; height:100%; object-fit:cover;
+    }
+
+    .card-body {
+      padding:12px;
+      display:flex; flex-direction:column; gap:6px;
+    }
+    .card-title { font-weight:bold; color:#333; font-size:16px; }
+    .card-price { color:#c0392b; font-weight:bold; }
+    .card-desc { font-size:13px; color:#777; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    /* 加入購物車按鈕 */
+    .btn-cart {
+      margin-top:8px;
+      padding:6px;
+      background:#1f354d;
+      color:white;
+      border:none;
+      border-radius:4px;
+      cursor:pointer;
+      font-size:13px;
+    }
+    .btn-cart:hover { background:#274563; }
+
+    .empty { margin-top:30px; text-align:center; color:#777; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>SGTP 二手商品平台 - 商品列表</h1>
+  <div class="header-right">
+    <a href="buyer_home.html">買家資料</a>
+    <a href="buyer_cart.html">🛒 購物車</a>
+     <a href="buyer_orders.html"> 訂單查詢</a>
+    <a href="buyer_login.html">登出</a>
+  </div>
+</header>
+
+<div class="container">
+  <div class="search-bar">
+    <input id="searchInput" class="search-input" placeholder="搜尋商品名稱..." />
+  </div>
+
+  <div id="productGrid" class="grid"></div>
+  <div id="emptyMsg" class="empty" style="display:none;">目前沒有任何商品。</div>
+</div>
+
+<script type="module">
+  import { auth, db } from "./firebase.js";
+  import {
+    collection, getDocs, query, orderBy, doc, setDoc
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+  const productGrid = document.getElementById("productGrid");
+  const emptyMsg = document.getElementById("emptyMsg");
+  const searchInput = document.getElementById("searchInput");
+
+  let buyerUid = null;
+  let allProducts = [];
+
+  const FALLBACK_IMG = "https://via.placeholder.com/400x300?text=No+Image";
+
+  onAuthStateChanged(auth, (user) => {
+    if (user) buyerUid = user.uid;
+  });
+
+  async function loadProducts() {
+    try {
+      const q = query(collection(db, "products"), orderBy("createdAt", "desc"));
+      const snap = await getDocs(q);
+
+      allProducts = [];
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        allProducts.push({
+          id: docSnap.id,
+          title: d.title,
+          price: d.price,
+          desc: d.desc,
+          image: d.image
+        });
+      });
+
+      render(allProducts);
+    } catch (err) {
+      console.error(err);
+      productGrid.innerHTML = "載入商品錯誤：" + err.message;
+    }
+  }
+
+  function render(list) {
+    productGrid.innerHTML = "";
+    if (!list.length) {
+      emptyMsg.style.display = "block";
+      return;
+    }
+    emptyMsg.style.display = "none";
+
+    list.forEach(p => {
+      const card = document.createElement("div");
+      card.className = "card";
+
+      const imgWrapper = document.createElement("div");
+      imgWrapper.className = "card-img-wrapper";
+      const img = document.createElement("img");
+      img.src = p.image || FALLBACK_IMG;
+      img.onerror = () => img.src = FALLBACK_IMG;
+      imgWrapper.appendChild(img);
+
+      const body = document.createElement("div");
+      body.className = "card-body";
+
+      body.innerHTML = `
+        <div class="card-title">${p.title}</div>
+        <div class="card-price">NT$ ${p.price}</div>
+        <div class="card-desc">${p.desc}</div>
+      `;
+
+      const cartBtn = document.createElement("button");
+      cartBtn.className = "btn-cart";
+      cartBtn.textContent = "加入購物車";
+      cartBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        addToCart(p);
+      });
+
+      body.appendChild(cartBtn);
+
+      card.appendChild(imgWrapper);
+      card.appendChild(body);
+
+      card.addEventListener("click", () => {
+        window.location.href = `buyer_product.html?pid=${p.id}`;
+      });
+
+      productGrid.appendChild(card);
+    });
+  }
+
+  async function addToCart(p) {
+    if (!buyerUid) {
+      alert("請先登入買家帳號！");
+      return;
+    }
+
+    const itemRef = doc(db, "carts", buyerUid, "items", p.id);
+
+    await setDoc(itemRef, {
+      title: p.title,
+      price: p.price,
+      qty: 1,
+      image: p.image,
+      addedAt: new Date()
+    });
+
+    alert("已加入購物車！");
+  }
+
+  searchInput.addEventListener("input", () => {
+    const key = searchInput.value.toLowerCase();
+    render(allProducts.filter(p => p.title.toLowerCase().includes(key)));
+  });
+
+  loadProducts();
+</script>
+
+</body>
+</html>
