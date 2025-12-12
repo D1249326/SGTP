@@ -211,7 +211,7 @@
 
   let currentUserAuth = null;
   let currentUserData = null;
-  // ⭐ cartItems 現在會包含 sellerId
+  // cartItems 會包含 sellerId
   let cartItems       = [];   // {id, title, price, qty, image, sellerId}
 
   // 登出
@@ -295,7 +295,7 @@
           price: typeof d.price === "number" ? d.price : 0,
           qty: typeof d.qty === "number" ? d.qty : 1,
           image: d.image || "",
-          sellerId: d.sellerId || null   // ⭐ 從購物車文件讀出 sellerId
+          sellerId: d.sellerId || null   // 從購物車文件讀出 sellerId
         };
         cartItems.push(item);
 
@@ -345,23 +345,30 @@
       return;
     }
 
-    // 計算總金額 + 準備 items
+    // 計算總金額 + 準備 items，同時收集 sellerIds
     let total = 0;
+    const sellerIdSet = new Set();
+
     const orderItems = cartItems.map(it => {
       const sub = it.price * it.qty;
       total += sub;
+
+      if (it.sellerId) {
+        sellerIdSet.add(it.sellerId);
+      }
+
       return {
         productId: it.id,
         title: it.title,
         price: it.price,
         qty: it.qty,
         image: it.image,
-        sellerId: it.sellerId || null   // ⭐ 每個 item 也保留 sellerId
+        sellerId: it.sellerId || null   // 每個 item 保留 sellerId
       };
     });
 
-    // ⭐ 一張訂單暫時假設只會有同一個賣家
-    const firstSellerId = cartItems[0].sellerId || null;
+    const sellerIds = Array.from(sellerIdSet);
+    const primarySellerId = sellerIds.length === 1 ? sellerIds[0] : null;
 
     try {
       btnSubmitOrder.disabled = true;
@@ -370,11 +377,12 @@
       // 建立訂單
       const ordersRef = collection(db, "orders");
       await addDoc(ordersRef, {
-        buyerId: currentUserAuth.uid,
+        buyerId: currentUserAuth.uid,        // 給 buyer_orders 用
         buyerEmail: currentUserAuth.email,
-        sellerId: firstSellerId,         // ⭐ 關鍵：在訂單文件最外層寫入 sellerId
+        sellerId: primarySellerId,           // 若只有一個賣家就填，否則為 null
+        sellerIds: sellerIds,               // 所有賣家 UID，給 seller_orders 用
         createdAt: serverTimestamp(),
-        status: "pending",               // 之後可以做：paid / shipped / completed / canceled
+        status: "pending",                  // 之後可以做：paid / shipped / completed / canceled
         totalAmount: total,
         shipName,
         shipPhone,
@@ -394,7 +402,7 @@
       msgEl.classList.add("msg-ok");
       msgEl.textContent = "訂單建立成功！感謝您的購買。";
 
-      // 建議導到「我的訂單」頁
+      // 導到「我的訂單」頁
       setTimeout(() => {
         window.location.href = "buyer_orders.html";
       }, 2000);

@@ -145,7 +145,6 @@
     collection,
     query,
     where,
-    orderBy,
     getDocs,
     doc,
     updateDoc,
@@ -245,10 +244,10 @@
     globalMsg.textContent = "";
 
     try {
+      // 只用 buyerId 過濾，不 orderBy，避免索引錯誤
       const q = query(
         collection(db, "orders"),
-        where("buyerId", "==", currentBuyerUid),
-        orderBy("createdAt", "desc")
+        where("buyerId", "==", currentBuyerUid)
       );
       const snap = await getDocs(q);
 

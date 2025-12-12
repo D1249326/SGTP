@@ -52,7 +52,7 @@
     .card-price { color:#c0392b; font-weight:bold; }
     .card-desc { font-size:13px; color:#777; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-    /* 加入購物車按鈕 */
+    /* 按鈕：現在是「查看商品」 */
     .btn-cart {
       margin-top:8px;
       padding:6px;
@@ -75,7 +75,7 @@
   <div class="header-right">
     <a href="buyer_home.html">買家資料</a>
     <a href="buyer_cart.html">🛒 購物車</a>
-     <a href="buyer_orders.html"> 訂單查詢</a>
+    <a href="buyer_orders.html">訂單查詢</a>
     <a href="buyer_login.html">登出</a>
   </div>
 </header>
@@ -92,7 +92,7 @@
 <script type="module">
   import { auth, db } from "./firebase.js";
   import {
-    collection, getDocs, query, orderBy, doc, setDoc
+    collection, getDocs, query, orderBy
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
@@ -158,22 +158,24 @@
       body.innerHTML = `
         <div class="card-title">${p.title}</div>
         <div class="card-price">NT$ ${p.price}</div>
-        <div class="card-desc">${p.desc}</div>
+        <div class="card-desc">${p.desc || ""}</div>
       `;
 
-      const cartBtn = document.createElement("button");
-      cartBtn.className = "btn-cart";
-      cartBtn.textContent = "加入購物車";
-      cartBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        addToCart(p);
+      // ⭐ 按鈕改成「查看商品」，並連到 buyer_product.html
+      const detailBtn = document.createElement("button");
+      detailBtn.className = "btn-cart";
+      detailBtn.textContent = "查看商品";
+      detailBtn.addEventListener("click", (e) => {
+        e.stopPropagation(); // 不要觸發 card 整張的 click
+        window.location.href = `buyer_product.html?pid=${p.id}`;
       });
 
-      body.appendChild(cartBtn);
+      body.appendChild(detailBtn);
 
       card.appendChild(imgWrapper);
       card.appendChild(body);
 
+      // 點整張卡片也可以進入商品詳細
       card.addEventListener("click", () => {
         window.location.href = `buyer_product.html?pid=${p.id}`;
       });
@@ -182,28 +184,9 @@
     });
   }
 
-  async function addToCart(p) {
-    if (!buyerUid) {
-      alert("請先登入買家帳號！");
-      return;
-    }
-
-    const itemRef = doc(db, "carts", buyerUid, "items", p.id);
-
-    await setDoc(itemRef, {
-      title: p.title,
-      price: p.price,
-      qty: 1,
-      image: p.image,
-      addedAt: new Date()
-    });
-
-    alert("已加入購物車！");
-  }
-
   searchInput.addEventListener("input", () => {
     const key = searchInput.value.toLowerCase();
-    render(allProducts.filter(p => p.title.toLowerCase().includes(key)));
+    render(allProducts.filter(p => (p.title || "").toLowerCase().includes(key)));
   });
 
   loadProducts();

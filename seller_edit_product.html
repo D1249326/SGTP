@@ -37,11 +37,36 @@
     }
     .main-btn:hover { background:#28486a; }
 
+    .sub-btn {
+      margin-top:10px; width:100%; padding:10px;
+      border:none; border-radius:4px; font-size:14px; cursor:pointer;
+    }
+
     .msg-error { margin-top:10px; color:#c0392b; font-size:14px; }
     .msg-ok    { margin-top:10px; color:#27ae60; font-size:14px; }
 
     .back-link { margin-top:12px; font-size:14px; }
     .back-link a { color:#1f354d; text-decoration:none; }
+
+    /* 圖片預覽 */
+    .img-preview-wrap {
+      margin-top:8px;
+      padding:8px;
+      background:#fafafa;
+      border:1px solid #eee;
+      border-radius:4px;
+      text-align:center;
+    }
+    .img-preview-wrap img {
+      max-width:100%;
+      max-height:200px;
+      object-fit:contain;
+    }
+    .img-preview-label {
+      font-size:12px;
+      color:#777;
+      margin-bottom:4px;
+    }
   </style>
 </head>
 <body>
@@ -62,7 +87,6 @@
 
   <div id="formArea" style="display:none;">
     <label>商品名稱</label>
-    <!-- ⭐ 已經可以編輯，不再 disabled -->
     <input id="prodTitle" type="text" />
 
     <label>價格 (NT$)</label>
@@ -74,7 +98,17 @@
     <label>商品描述（可選）</label>
     <textarea id="prodDesc"></textarea>
 
+    <!-- ⭐ 新增：圖片 URL & 預覽 -->
+    <label>商品圖片網址（可選）</label>
+    <input id="prodImageUrl" type="text" placeholder="請貼上圖片 URL，例如 https://..." />
+    <div class="img-preview-wrap">
+      <div class="img-preview-label">目前圖片預覽：</div>
+      <img id="imgPreview" src="" alt="商品圖片預覽" />
+    </div>
+
     <button id="btnSave" class="main-btn">儲存變更</button>
+    <!-- ⭐ 新增：刪除商品按鈕 -->
+    <button id="btnDelete" class="sub-btn btn-danger">刪除商品（無法復原）</button>
 
     <div id="msgError" class="msg-error"></div>
     <div id="msgOk" class="msg-ok"></div>
@@ -92,7 +126,7 @@
     signOut
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
   import {
-    doc, getDoc, updateDoc, serverTimestamp
+    doc, getDoc, updateDoc, deleteDoc, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
   const $ = id => document.getElementById(id);
@@ -109,21 +143,35 @@
   const priceInput = $("prodPrice");
   const stockInput = $("prodStock");
   const descInput  = $("prodDesc");
+  const imageInput = $("prodImageUrl");
+  const imgPreview = $("imgPreview");
+
   const btnSave    = $("btnSave");
+  const btnDelete  = $("btnDelete");
 
   const msgErrorEl = $("msgError");
   const msgOkEl    = $("msgOk");
+
+  const FALLBACK_IMG = "https://via.placeholder.com/400x300?text=No+Image";
 
   // 拿 URL 的 pid
   const params = new URLSearchParams(window.location.search);
   const pid = params.get("pid");
 
   let currentSellerUid = null;
+  let currentProductData = null;
 
   if (!pid) {
     loadingEl.style.display = "none";
     notFoundEl.style.display = "block";
   }
+
+  // 預覽圖片
+  function refreshPreview() {
+    const url = imageInput.value.trim();
+    imgPreview.src = url || FALLBACK_IMG;
+  }
+  imageInput.addEventListener("input", refreshPreview);
 
   // 1. 確認登入、角色是 seller
   onAuthStateChanged(auth, async (user) => {
@@ -168,8 +216,9 @@
       }
 
       const data = snap.data();
+      currentProductData = data;
 
-      // 只允許「自己的商品」編輯
+      // 只允許「自己的商品」編輯 / 刪除
       if (!data.sellerId || data.sellerId !== currentSellerUid) {
         notFoundEl.textContent = "你不是此商品的賣家，無法編輯。";
         notFoundEl.style.display = "block";
@@ -181,6 +230,9 @@
       priceInput.value = (typeof data.price === "number") ? data.price : "";
       stockInput.value = (typeof data.stock === "number") ? data.stock : "";
       descInput.value  = data.desc || "";
+      imageInput.value = data.image || "";
+
+      refreshPreview();
 
       titleBar.textContent = "編輯商品 - " + (data.title || "(未命名)");
 
@@ -193,14 +245,15 @@
     }
   }
 
-  // 3. 儲存變更（更新 title / price / stock / desc）
+  // 3. 儲存變更（更新 title / price / stock / desc / image）
   btnSave.addEventListener("click", async () => {
     msgErrorEl.textContent = "";
     msgOkEl.textContent = "";
 
-    const title   = titleInput.value.trim();
+    const title    = titleInput.value.trim();
     const priceStr = priceInput.value;
     const stockStr = stockInput.value;
+    const imageUrl = imageInput.value.trim();
 
     if (!title) {
       msgErrorEl.textContent = "請填寫商品名稱。";
@@ -233,11 +286,13 @@
         price,
         stock,
         desc: descInput.value.trim(),
+        image: imageUrl || null,
         updatedAt: serverTimestamp()
       });
 
       msgOkEl.textContent = "已成功更新商品資料！";
       titleBar.textContent = "編輯商品 - " + title;
+      refreshPreview();
     } catch (err) {
       console.error(err);
       msgErrorEl.textContent = "更新失敗：" + err.message;
@@ -247,7 +302,30 @@
     }
   });
 
-  // 4. 登出
+  // 4. 刪除商品
+  btnDelete.addEventListener("click", async () => {
+    if (!pid) return;
+    const ok = confirm("確定要刪除此商品嗎？\n刪除後無法復原，買家也將無法再看到此商品。");
+    if (!ok) return;
+
+    try {
+      btnDelete.disabled = true;
+      btnDelete.textContent = "刪除中...";
+
+      await deleteDoc(doc(db, "products", pid));
+
+      alert("商品已刪除！");
+      window.location.href = "seller_home.html";
+    } catch (err) {
+      console.error(err);
+      alert("刪除失敗：" + err.message);
+    } finally {
+      btnDelete.disabled = false;
+      btnDelete.textContent = "刪除商品（無法復原）";
+    }
+  });
+
+  // 5. 登出
   btnLogout.addEventListener("click", async () => {
     try {
       await signOut(auth);
@@ -260,3 +338,4 @@
 </script>
 </body>
 </html>
+

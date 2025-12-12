@@ -4,116 +4,63 @@
   <meta charset="UTF-8" />
   <title>SGTP 二手商品平台 - 賣家訂單管理</title>
   <style>
-    body {
-      margin:0;
-      font-family: Arial, sans-serif;
-      background:#f5f5f5;
-    }
+    body { margin:0; font-family: Arial, sans-serif; background:#f5f5f5; }
     header {
-      background:#1f354d;
-      color:white;
-      padding:16px 24px;
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
+      background:#1f354d; color:white; padding:16px 24px;
+      display:flex; justify-content:space-between; align-items:center;
     }
     header h1 { margin:0; font-size:22px; }
-    header .right button { margin-left:8px; }
 
-    .btn {
-      padding:6px 12px;
-      border:none;
-      border-radius:4px;
-      font-size:14px;
-      cursor:pointer;
-    }
-    .btn-light { background:#ffffff; color:#1f354d; }
+    .btn { padding:6px 12px; border:none; border-radius:4px; cursor:pointer; }
+    .btn-light { background:#fff; color:#1f354d; }
     .btn-danger { background:#c0392b; color:#fff; }
-    .btn-primary { background:#1f354d; color:#fff; }
-    .btn-small {
-      padding:4px 8px;
-      font-size:12px;
-      border-radius:4px;
-      border:none;
-      cursor:pointer;
-    }
-    .btn-accept {
-      background:#27ae60;
-      color:white;
-    }
-    .btn-reject {
-      background:#e67e22;
-      color:white;
-    }
+    .btn-small { padding:4px 8px; font-size:12px; border-radius:4px; cursor:pointer; }
 
-    .container {
-      max-width:1100px;
-      margin:24px auto;
-      padding:0 16px;
-    }
+    .btn-accept  { background:#27ae60; color:white; }
+    .btn-reject  { background:#e67e22; color:white; }
+
+    /* ⭐ 新增：狀態修改按鈕樣式 */
+    .btn-status-paid      { background:#2980b9; color:#fff; margin-right:4px; }
+    .btn-status-shipped   { background:#16a085; color:#fff; margin-right:4px; }
+    .btn-status-completed { background:#2ecc71; color:#fff; margin-right:4px; }
+
+    .container { max-width:1100px; margin:24px auto; padding:0 16px; }
 
     .card {
-      background:white;
-      border-radius:8px;
+      background:white; border-radius:8px;
       box-shadow:0 2px 8px rgba(0,0,0,0.1);
-      padding:16px 20px;
-      margin-bottom:16px;
-    }
-    .empty {
-      margin-top:16px;
-      color:#777;
+      padding:16px 20px; margin-bottom:16px;
     }
 
-    .order-header {
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      margin-bottom:6px;
-    }
-    .order-id {
-      font-weight:bold;
-      font-size:15px;
-    }
+    .order-header { display:flex; justify-content:space-between; margin-bottom:6px; }
+    .order-id { font-weight:bold; }
 
-    .badge {
-      display:inline-block;
-      padding:2px 8px;
-      border-radius:10px;
-      font-size:12px;
-      color:white;
-    }
+    .badge { padding:2px 8px; border-radius:10px; color:#fff; font-size:12px; }
     .badge-pending { background:#e67e22; }
     .badge-paid { background:#2980b9; }
     .badge-shipped { background:#16a085; }
     .badge-completed { background:#2ecc71; }
     .badge-canceled { background:#7f8c8d; }
     .badge-cancel-req { background:#f39c12; }
-    .badge-cancel-rej { background:#c0392b; }
 
-    .order-meta {
-      font-size:13px;
-      color:#555;
-      margin-bottom:4px;
-    }
-    .order-total {
-      font-weight:bold;
-      margin-top:4px;
-    }
+    .order-meta { font-size:13px; color:#555; margin-bottom:4px; }
+    .order-total { margin-top:4px; font-weight:bold; }
+
+    .items-list { margin-top:8px; border-top:1px solid #eee; padding-top:6px; font-size:13px; }
+
+    /* ⭐ 新增：動作區塊 */
     .order-actions {
-      margin-top:6px;
-    }
-    .items-list {
       margin-top:8px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
       font-size:13px;
-      border-top:1px solid #eee;
-      padding-top:6px;
+      align-items:center;
     }
-    .note {
-      font-size:13px;
-      color:#777;
-    }
+    .actions-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
   </style>
 </head>
+
 <body>
 <header>
   <h1>SGTP 二手商品平台 - 賣家訂單管理</h1>
@@ -124,258 +71,282 @@
 </header>
 
 <div class="container">
-  <div class="card" style="margin-bottom:20px;">
+  <div class="card">
     <h2>我的訂單（賣家）</h2>
-    <p class="note">
-      只會顯示 <b>目前登入賣家</b> 的訂單。可以在「狀態」欄位中直接修改： 
-      <span class="badge badge-pending">pending</span> →
-      <span class="badge badge-paid">已付款</span> →
-      <span class="badge badge-shipped">已出貨</span> →
-      <span class="badge badge-completed">已完成</span><br/>
-      若買家提出取消，會顯示 <span class="badge badge-cancel-req">取消申請中</span>，
-      可按「同意取消」或「拒絕取消」。
+    <p style="font-size:13px; color:#777;">
+      顯示所有由你販售的商品所產生的訂單。<br>
+      可直接修改訂單狀態為：
+      <b>已付款 / 已出貨 / 已完成</b>。<br>
+      若買家提出取消，可按「同意取消」或「拒絕取消」處理。
     </p>
   </div>
 
-  <div id="ordersEmpty" class="empty" style="display:none;">目前沒有任何訂單。</div>
+  <div id="ordersEmpty" style="display:none; color:#777;">目前沒有任何訂單。</div>
   <div id="ordersWrap"></div>
 </div>
 
 <script type="module">
   import { auth, db } from "./firebase.js";
   import {
-    onAuthStateChanged,
-    signOut
+    onAuthStateChanged, signOut
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
   import {
-    collection,
-    query,
-    where,
-    orderBy,
-    getDocs,
-    doc,
-    updateDoc,
-    serverTimestamp
+    collection, query, where, getDocs,
+    updateDoc, doc, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-  const btnLogout   = document.getElementById("btnLogout");
+  const ordersWrap = document.getElementById("ordersWrap");
   const ordersEmpty = document.getElementById("ordersEmpty");
-  const ordersWrap  = document.getElementById("ordersWrap");
+  const btnLogout = document.getElementById("btnLogout");
 
   let currentSellerUid = null;
 
-  // 登出
-  btnLogout.addEventListener("click", async () => {
-    try {
-      await signOut(auth);
-      alert("已登出");
-      window.location.href = "seller_login.html";
-    } catch (err) {
-      console.error(err);
-      alert("登出失敗：" + err.message);
-    }
-  });
+  btnLogout.onclick = async () => {
+    await signOut(auth);
+    alert("已登出");
+    location.href = "seller_login.html";
+  };
 
-  // 監聽登入
-  onAuthStateChanged(auth, async (user) => {
+  onAuthStateChanged(auth, async user => {
     if (!user) {
       alert("請先登入賣家帳號");
-      window.location.href = "seller_login.html";
+      location.href = "seller_login.html";
       return;
     }
     currentSellerUid = user.uid;
-    await loadOrders();
+    loadOrders();
   });
 
   function formatDate(ts) {
     if (!ts || !ts.toDate) return "-";
     const d = ts.toDate();
     const yyyy = d.getFullYear();
-    const mm   = String(d.getMonth()+1).padStart(2,"0");
-    const dd   = String(d.getDate()).padStart(2,"0");
-    const hh   = String(d.getHours()).padStart(2,"0");
-    const mi   = String(d.getMinutes()).padStart(2,"0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mi = String(d.getMinutes()).padStart(2, "0");
     return `${yyyy}/${mm}/${dd} ${hh}:${mi}`;
   }
 
-  function getStatusBadge(data) {
-    const span = document.createElement("span");
-    span.classList.add("badge");
+  function statusBadge(data) {
+    const s = document.createElement("span");
+    s.classList.add("badge");
 
-    if (data.status === "canceled" || data.cancelStatus === "approved") {
-      span.classList.add("badge-canceled");
-      span.textContent = "已取消";
-      return span;
-    }
     if (data.cancelStatus === "requested") {
-      span.classList.add("badge-cancel-req");
-      span.textContent = "取消申請中";
-      return span;
+      s.classList.add("badge-cancel-req");
+      s.textContent = "取消申請中";
+      return s;
     }
-    if (data.cancelStatus === "rejected") {
-      span.classList.add("badge-cancel-rej");
-      span.textContent = "取消被拒絕";
-      return span;
+    if (data.status === "canceled") {
+      s.classList.add("badge-canceled");
+      s.textContent = "已取消";
+      return s;
     }
 
     switch (data.status) {
       case "pending":
-        span.classList.add("badge-pending");
-        span.textContent = "pending";
+        s.classList.add("badge-pending");
+        s.textContent = "pending";
         break;
       case "paid":
-        span.classList.add("badge-paid");
-        span.textContent = "已付款";
+        s.classList.add("badge-paid");
+        s.textContent = "已付款";
         break;
       case "shipped":
-        span.classList.add("badge-shipped");
-        span.textContent = "已出貨";
+        s.classList.add("badge-shipped");
+        s.textContent = "已出貨";
         break;
       case "completed":
-        span.classList.add("badge-completed");
-        span.textContent = "已完成";
+        s.classList.add("badge-completed");
+        s.textContent = "已完成";
         break;
       default:
-        span.classList.add("badge-pending");
-        span.textContent = data.status || "unknown";
+        s.classList.add("badge-pending");
+        s.textContent = data.status || "unknown";
     }
-    return span;
+    return s;
   }
 
   async function loadOrders() {
     ordersWrap.innerHTML = "";
     ordersEmpty.style.display = "none";
 
-    try {
-      // 這裡假設每筆訂單根據 items 中 sellerId 來存一個 sellerIds 陣列，
-      // 查詢時用 array-contains。
-      const q = query(
-        collection(db, "orders"),
-        where("sellerIds", "array-contains", currentSellerUid),
-        orderBy("createdAt", "desc")
-      );
-      const snap = await getDocs(q);
+    // 用 sellerId 查賣家自己的訂單
+    const q = query(
+      collection(db, "orders"),
+      where("sellerId", "==", currentSellerUid)
+    );
 
-      if (snap.empty) {
-        ordersEmpty.style.display = "block";
-        return;
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+      ordersEmpty.style.display = "block";
+      return;
+    }
+
+    snap.forEach(docSnap => {
+      const data = docSnap.data();
+
+      const card = document.createElement("div");
+      card.className = "card";
+
+      const header = document.createElement("div");
+      header.className = "order-header";
+
+      const idDiv = document.createElement("div");
+      idDiv.className = "order-id";
+      idDiv.textContent = "訂單編號：" + docSnap.id;
+
+      header.appendChild(idDiv);
+      header.appendChild(statusBadge(data));
+
+      const metaHtml = `
+        <div class="order-meta">訂單日期：${formatDate(data.createdAt)}</div>
+        <div class="order-meta">買家：${data.buyerEmail || ""}</div>
+        <div class="order-meta">
+          收件人：${data.shipName || ""}，
+          電話：${data.shipPhone || ""}，
+          地址：${data.shipAddress || ""}
+        </div>
+        <div class="order-total">訂單總額：NT$ ${data.totalAmount || 0}</div>
+      `;
+
+      // ⭐ 動作區塊
+      const actionsDiv = document.createElement("div");
+      actionsDiv.className = "order-actions";
+
+      // 1️⃣ 狀態修改按鈕（若已取消就不顯示）
+      if (data.status !== "canceled") {
+        const row1 = document.createElement("div");
+        row1.className = "actions-row";
+
+        const label = document.createElement("span");
+        label.textContent = "變更訂單狀態：";
+
+        const btnPaid = document.createElement("button");
+        btnPaid.className = "btn-small btn-status-paid";
+        btnPaid.textContent = "設為已付款";
+        btnPaid.onclick = () => updateStatus(docSnap.id, "paid");
+
+        const btnShipped = document.createElement("button");
+        btnShipped.className = "btn-small btn-status-shipped";
+        btnShipped.textContent = "設為已出貨";
+        btnShipped.onclick = () => updateStatus(docSnap.id, "shipped");
+
+        const btnCompleted = document.createElement("button");
+        btnCompleted.className = "btn-small btn-status-completed";
+        btnCompleted.textContent = "設為已完成";
+        btnCompleted.onclick = () => updateStatus(docSnap.id, "completed");
+
+        row1.appendChild(label);
+        row1.appendChild(btnPaid);
+        row1.appendChild(btnShipped);
+        row1.appendChild(btnCompleted);
+
+        actionsDiv.appendChild(row1);
       }
 
-      snap.forEach(docSnap => {
-        const data = docSnap.data();
-        const card = document.createElement("div");
-        card.className = "card";
+      // 2️⃣ 取消申請處理
+      if (data.cancelStatus === "requested" && data.status !== "canceled") {
+        const row2 = document.createElement("div");
+        row2.className = "actions-row";
 
-        const header = document.createElement("div");
-        header.className = "order-header";
+        const info = document.createElement("span");
+        info.textContent =
+          "買家已提出取消申請" +
+          (data.cancelReason ? `（原因：${data.cancelReason}）` : "") +
+          "。";
 
-        const idDiv = document.createElement("div");
-        idDiv.className = "order-id";
-        idDiv.textContent = "訂單編號：" + docSnap.id;
+        const btnOk = document.createElement("button");
+        btnOk.className = "btn-small btn-accept";
+        btnOk.textContent = "同意取消";
+        btnOk.onclick = () => approveCancel(docSnap.id);
 
-        const badge = getStatusBadge(data);
-        header.appendChild(idDiv);
-        header.appendChild(badge);
+        const btnNo = document.createElement("button");
+        btnNo.className = "btn-small btn-reject";
+        btnNo.textContent = "拒絕取消";
+        btnNo.onclick = () => rejectCancel(docSnap.id);
 
-        const meta1 = document.createElement("div");
-        meta1.className = "order-meta";
-        meta1.textContent = "訂單日期：" + formatDate(data.createdAt);
+        row2.appendChild(info);
+        row2.appendChild(btnOk);
+        row2.appendChild(btnNo);
 
-        const meta2 = document.createElement("div");
-        meta2.className = "order-meta";
-        meta2.textContent = "買家：" + (data.buyerEmail || data.buyerId || "");
+        actionsDiv.appendChild(row2);
+      } else if (data.cancelStatus === "approved" || data.status === "canceled") {
+        const row = document.createElement("div");
+        row.className = "actions-row";
+        row.textContent = "此訂單已取消。";
+        actionsDiv.appendChild(row);
+      } else if (data.cancelStatus === "rejected") {
+        const row = document.createElement("div");
+        row.className = "actions-row";
+        row.textContent = "已拒絕取消申請。";
+        actionsDiv.appendChild(row);
+      }
 
-        const meta3 = document.createElement("div");
-        meta3.className = "order-meta";
-        meta3.textContent = "收件人：" + (data.shipName || "") + "，電話：" +
-                            (data.shipPhone || "") + "，地址：" + (data.shipAddress || "");
+      // 商品明細（只顯示屬於此賣家的商品）
+      const itemsDiv = document.createElement("div");
+      itemsDiv.className = "items-list";
 
-        const totalDiv = document.createElement("div");
-        totalDiv.className = "order-total";
-        totalDiv.textContent = "訂單總額：NT$ " + (data.totalAmount || 0);
+      if (Array.isArray(data.items)) {
+        data.items
+          .filter(it => !it.sellerId || it.sellerId === currentSellerUid)
+          .forEach(it => {
+            const line = document.createElement("div");
+            line.textContent = `${it.title || "商品"} x ${it.qty || 1}（NT$ ${it.price || 0}）`;
+            itemsDiv.appendChild(line);
+          });
+      } else {
+        itemsDiv.textContent = "（無商品明細）";
+      }
 
-        const actions = document.createElement("div");
-        actions.className = "order-actions";
+      card.appendChild(header);
+      card.insertAdjacentHTML("beforeend", metaHtml);
+      card.appendChild(actionsDiv);
+      card.appendChild(itemsDiv);
 
-        // 若有取消申請，可同意 / 拒絕
-        if (data.cancelStatus === "requested" && data.status !== "canceled") {
-          const info = document.createElement("div");
-          info.className = "order-meta";
-          info.textContent = "買家已提出取消申請" + (data.cancelReason ? `（原因：${data.cancelReason}）` : "") + "。";
-          actions.appendChild(info);
-
-          const btnOk = document.createElement("button");
-          btnOk.className = "btn-small btn-accept";
-          btnOk.textContent = "同意取消";
-          btnOk.style.marginRight = "6px";
-          btnOk.addEventListener("click", () => approveCancel(docSnap.id));
-
-          const btnNo = document.createElement("button");
-          btnNo.className = "btn-small btn-reject";
-          btnNo.textContent = "拒絕取消";
-          btnNo.addEventListener("click", () => rejectCancel(docSnap.id));
-
-          actions.appendChild(btnOk);
-          actions.appendChild(btnNo);
-        } else if (data.cancelStatus === "approved" || data.status === "canceled") {
-          const info = document.createElement("div");
-          info.className = "order-meta";
-          info.textContent = "此訂單已取消。";
-          actions.appendChild(info);
-        } else if (data.cancelStatus === "rejected") {
-          const info = document.createElement("div");
-          info.className = "order-meta";
-          info.textContent = "已拒絕取消申請。";
-          actions.appendChild(info);
-        }
-
-        // 商品列表（只顯示屬於這個 seller 的商品）
-        const itemsDiv = document.createElement("div");
-        itemsDiv.className = "items-list";
-
-        if (Array.isArray(data.items)) {
-          data.items
-            .filter(it => !it.sellerId || it.sellerId === currentSellerUid)
-            .forEach(it => {
-              const line = document.createElement("div");
-              line.textContent = `${it.title || "商品"} x ${it.qty || 1}（單價 NT$ ${it.price || 0}）`;
-              itemsDiv.appendChild(line);
-            });
-        } else {
-          itemsDiv.textContent = "（無商品明細）";
-        }
-
-        card.appendChild(header);
-        card.appendChild(meta1);
-        card.appendChild(meta2);
-        card.appendChild(meta3);
-        card.appendChild(totalDiv);
-        card.appendChild(actions);
-        card.appendChild(itemsDiv);
-
-        ordersWrap.appendChild(card);
-      });
-
-    } catch (err) {
-      console.error(err);
-      alert("讀取訂單錯誤：" + err.message);
-    }
+      ordersWrap.appendChild(card);
+    });
   }
 
-  // 同意取消
-  async function approveCancel(orderId) {
-    const ok = confirm("確定要『同意取消』這筆訂單嗎？\n此動作會將訂單狀態設為已取消。");
+  // ⭐ 修改訂單狀態
+  async function updateStatus(orderId, newStatus) {
+    const labelMap = {
+      "paid": "已付款",
+      "shipped": "已出貨",
+      "completed": "已完成"
+    };
+    const ok = confirm(`確定要將此訂單狀態改為「${labelMap[newStatus] || newStatus}」嗎？`);
     if (!ok) return;
 
     try {
       await updateDoc(doc(db, "orders", orderId), {
-        cancelStatus: "approved",
-        status: "canceled",
-        canceledBy: currentSellerUid,
-        canceledAt: serverTimestamp()
+        status: newStatus,
+        updatedAt: serverTimestamp()
       });
-      alert("已同意取消訂單。");
-      await loadOrders();
+      alert(`已將訂單狀態更新為「${labelMap[newStatus] || newStatus}」。`);
+      loadOrders();
+    } catch (err) {
+      console.error(err);
+      alert("更新訂單狀態失敗：" + err.message);
+    }
+  }
+
+  // 同意取消
+  async function approveCancel(id){
+    const ok = confirm("確定要同意取消這筆訂單嗎？\n此操作會將訂單狀態設為『已取消』。");
+    if (!ok) return;
+
+    try {
+      await updateDoc(doc(db,"orders",id),{
+        status:"canceled",
+        cancelStatus:"approved",
+        canceledAt: serverTimestamp(),
+        canceledBy: currentSellerUid
+      });
+      alert("已同意取消");
+      loadOrders();
     } catch (err) {
       console.error(err);
       alert("同意取消失敗：" + err.message);
@@ -383,21 +354,22 @@
   }
 
   // 拒絕取消
-  async function rejectCancel(orderId) {
-    const ok = confirm("確定要『拒絕取消』這筆訂單嗎？");
+  async function rejectCancel(id){
+    const ok = confirm("確定要拒絕取消申請嗎？");
     if (!ok) return;
 
     try {
-      await updateDoc(doc(db, "orders", orderId), {
-        cancelStatus: "rejected"
+      await updateDoc(doc(db,"orders",id),{
+        cancelStatus:"rejected"
       });
-      alert("已拒絕取消申請。");
-      await loadOrders();
+      alert("已拒絕取消申請");
+      loadOrders();
     } catch (err) {
       console.error(err);
       alert("拒絕取消失敗：" + err.message);
     }
   }
 </script>
+
 </body>
 </html>
