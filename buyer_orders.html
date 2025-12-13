@@ -3,125 +3,121 @@
 <head>
   <meta charset="UTF-8" />
   <title>SGTP - 我的訂單</title>
+
   <style>
     body {
-      margin:0;
+      margin: 0;
       font-family: Arial, sans-serif;
-      background:#f5f5f5;
+      background: #f5f5f5;
     }
+
     header {
-      background:#1f354d;
-      color:white;
-      padding:16px 24px;
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
+      background: #1f354d;
+      color: white;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
-    header h1 { margin:0; font-size:22px; }
-    header .right button { margin-left:8px; }
+
+    header h1 {
+      margin: 0;
+      font-size: 22px;
+    }
 
     .btn {
-      padding:6px 12px;
-      border:none;
-      border-radius:4px;
-      font-size:14px;
-      cursor:pointer;
+      padding: 6px 12px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
     }
-    .btn-light { background:#ffffff; color:#1f354d; }
-    .btn-danger { background:#c0392b; color:#fff; }
-    .btn-primary { background:#1f354d; color:#fff; }
-    .btn-secondary { background:#bdc3c7; color:#2c3e50; }
-    .btn-cancel-request {
-      background:#e67e22;
-      color:white;
+
+    .btn-light {
+      background: #ffffff;
+      color: #1f354d;
+    }
+
+    .btn-danger {
+      background: #c0392b;
+      color: #ffffff;
     }
 
     .container {
-      max-width:960px;
-      margin:24px auto;
-      padding:0 16px;
+      max-width: 960px;
+      margin: 24px auto;
+      padding: 0 16px;
     }
+
     .card {
-      background:white;
-      border-radius:8px;
-      box-shadow:0 2px 8px rgba(0,0,0,0.1);
-      padding:16px 20px;
-      margin-bottom:16px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 16px 20px;
+      margin-bottom: 16px;
     }
+
     .empty {
-      margin-top:16px;
-      color:#777;
+      margin-top: 16px;
+      color: #777;
     }
 
     .order-header {
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      margin-bottom:8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
     }
-    .order-id {
-      font-weight:bold;
-      font-size:15px;
-    }
-    .badge {
-      display:inline-block;
-      padding:2px 8px;
-      border-radius:10px;
-      font-size:12px;
-      color:white;
-    }
-    .badge-pending { background:#e67e22; }
-    .badge-paid { background:#2980b9; }
-    .badge-shipped { background:#16a085; }
-    .badge-completed { background:#2ecc71; }
-    .badge-canceled { background:#7f8c8d; }
 
-    .badge-cancel-req { background:#f39c12; }
-    .badge-cancel-rej { background:#c0392b; }
+    .order-id {
+      font-weight: bold;
+    }
+
+    .badge {
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 12px;
+      color: white;
+    }
+
+    .badge-pending { background: #e67e22; }
+    .badge-paid { background: #2980b9; }
+    .badge-shipped { background: #16a085; }
+    .badge-completed { background: #2ecc71; }
+    .badge-canceled { background: #7f8c8d; }
 
     .order-meta {
-      font-size:13px;
-      color:#555;
-      margin-bottom:6px;
+      font-size: 13px;
+      color: #555;
+      margin-top: 4px;
     }
+
     .order-total {
-      font-weight:bold;
-      margin-top:4px;
-    }
-    .order-actions {
-      margin-top:8px;
+      font-weight: bold;
+      margin-top: 6px;
     }
 
     .items-toggle {
-      cursor:pointer;
-      font-size:13px;
-      color:#1f354d;
-      margin-top:4px;
-      display:inline-flex;
-      align-items:center;
-      gap:4px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #1f354d;
+      margin-top: 8px;
     }
 
     .items-list {
-      margin-top:8px;
-      font-size:13px;
-      border-top:1px solid #eee;
-      padding-top:6px;
-      display:none;
+      display: none;
+      font-size: 13px;
+      margin-top: 6px;
+      border-top: 1px solid #eee;
+      padding-top: 6px;
     }
-
-    .msg {
-      margin-top:10px;
-      font-size:14px;
-      color:#c0392b;
-    }
-    .msg-ok { color:#27ae60; }
   </style>
 </head>
+
 <body>
 <header>
   <h1>我的訂單</h1>
-  <div class="right">
+  <div>
     <button class="btn btn-light" onclick="location.href='buyer_shop.html'">繼續購物</button>
     <button class="btn btn-light" onclick="location.href='buyer_cart.html'">🛒 購物車</button>
     <button id="btnLogout" class="btn btn-danger">登出</button>
@@ -130,249 +126,102 @@
 
 <div class="container">
   <h2>訂單列表</h2>
-  <div id="globalMsg" class="msg"></div>
-  <div id="ordersEmpty" class="empty" style="display:none;">目前沒有任何訂單。</div>
+  <div id="ordersEmpty" class="empty" style="display:none;">
+    目前沒有任何訂單。
+  </div>
   <div id="ordersWrap"></div>
 </div>
 
 <script type="module">
   import { auth, db } from "./firebase.js";
+  import { onAuthStateChanged, signOut }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
   import {
-    onAuthStateChanged,
-    signOut
-  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-  import {
-    collection,
-    query,
-    where,
-    getDocs,
-    doc,
-    updateDoc,
-    serverTimestamp
+    collection, query, where, getDocs
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-  const btnLogout   = document.getElementById("btnLogout");
+  const ordersWrap = document.getElementById("ordersWrap");
   const ordersEmpty = document.getElementById("ordersEmpty");
-  const ordersWrap  = document.getElementById("ordersWrap");
-  const globalMsg   = document.getElementById("globalMsg");
+  const btnLogout = document.getElementById("btnLogout");
 
-  let currentBuyerUid = null;
+  btnLogout.onclick = async () => {
+    await signOut(auth);
+    location.href = "buyer_login.html";
+  };
 
-  // 登出
-  btnLogout.addEventListener("click", async () => {
-    try {
-      await signOut(auth);
-      alert("已登出");
-      window.location.href = "buyer_login.html";
-    } catch (err) {
-      console.error(err);
-      alert("登出失敗：" + err.message);
-    }
-  });
-
-  // 監聽登入
-  onAuthStateChanged(auth, async (user) => {
+  onAuthStateChanged(auth, async user => {
     if (!user) {
-      alert("請先登入買家帳號");
-      window.location.href = "buyer_login.html";
+      location.href = "buyer_login.html";
       return;
     }
-    currentBuyerUid = user.uid;
-    await loadOrders();
+    loadOrders(user.uid);
   });
 
-  function formatDate(ts) {
-    if (!ts || !ts.toDate) return "-";
-    const d = ts.toDate();
-    const yyyy = d.getFullYear();
-    const mm   = String(d.getMonth()+1).padStart(2,"0");
-    const dd   = String(d.getDate()).padStart(2,"0");
-    const hh   = String(d.getHours()).padStart(2,"0");
-    const mi   = String(d.getMinutes()).padStart(2,"0");
-    return `${yyyy}/${mm}/${dd} ${hh}:${mi}`;
-  }
-
-  function getStatusBadge(data) {
-    const span = document.createElement("span");
-    span.classList.add("badge");
-
-    // 先處理取消相關
-    if (data.status === "canceled" || data.cancelStatus === "approved") {
-      span.classList.add("badge-canceled");
-      span.textContent = "已取消";
-      return span;
-    }
-    if (data.cancelStatus === "requested") {
-      span.classList.add("badge-cancel-req");
-      span.textContent = "取消申請中";
-      return span;
-    }
-    if (data.cancelStatus === "rejected") {
-      span.classList.add("badge-cancel-rej");
-      span.textContent = "取消被拒絕";
-      return span;
-    }
-
-    // 一般狀態
-    switch (data.status) {
-      case "pending":
-        span.classList.add("badge-pending");
-        span.textContent = "pending";
-        break;
-      case "paid":
-        span.classList.add("badge-paid");
-        span.textContent = "已付款";
-        break;
-      case "shipped":
-        span.classList.add("badge-shipped");
-        span.textContent = "已出貨";
-        break;
-      case "completed":
-        span.classList.add("badge-completed");
-        span.textContent = "已完成";
-        break;
-      default:
-        span.classList.add("badge-pending");
-        span.textContent = data.status || "unknown";
-    }
-    return span;
-  }
-
-  async function loadOrders() {
+  async function loadOrders(uid) {
     ordersWrap.innerHTML = "";
     ordersEmpty.style.display = "none";
-    globalMsg.textContent = "";
 
-    try {
-      // 只用 buyerId 過濾，不 orderBy，避免索引錯誤
-      const q = query(
-        collection(db, "orders"),
-        where("buyerId", "==", currentBuyerUid)
-      );
-      const snap = await getDocs(q);
+    const q = query(
+      collection(db, "orders"),
+      where("buyerId", "==", uid)
+    );
 
-      if (snap.empty) {
-        ordersEmpty.style.display = "block";
-        return;
-      }
+    const snap = await getDocs(q);
 
-      snap.forEach(docSnap => {
-        const data = docSnap.data();
-        const card = document.createElement("div");
-        card.className = "card";
+    if (snap.empty) {
+      ordersEmpty.style.display = "block";
+      return;
+    }
 
-        const header = document.createElement("div");
-        header.className = "order-header";
+    snap.forEach(d => {
+      const o = d.data();
 
-        const idDiv = document.createElement("div");
-        idDiv.className = "order-id";
-        idDiv.textContent = "訂單編號：" + docSnap.id;
+      const card = document.createElement("div");
+      card.className = "card";
 
-        const badge = getStatusBadge(data);
-        header.appendChild(idDiv);
-        header.appendChild(badge);
+      const header = document.createElement("div");
+      header.className = "order-header";
 
-        const meta = document.createElement("div");
-        meta.className = "order-meta";
-        meta.textContent = "訂單日期：" + formatDate(data.createdAt || data.created_at);
+      const id = document.createElement("div");
+      id.className = "order-id";
+      id.textContent = "訂單編號：" + d.id;
 
-        const statusLine = document.createElement("div");
-        statusLine.className = "order-meta";
-        statusLine.textContent = "狀態：" + (badge.textContent || data.status);
+      const badge = document.createElement("span");
+      badge.className = "badge badge-" + (o.status || "pending");
+      badge.textContent = o.status || "pending";
 
-        const totalDiv = document.createElement("div");
-        totalDiv.className = "order-total";
-        totalDiv.textContent = "訂單總額：NT$ " + (data.totalAmount || 0);
+      header.append(id, badge);
 
-        const actions = document.createElement("div");
-        actions.className = "order-actions";
+      const time = document.createElement("div");
+      time.className = "order-meta";
+      time.textContent = "訂單時間：" + (o.createdAt?.toDate?.().toLocaleString() || "-");
 
-        // 是否可以提出取消：
-        const canRequestCancel =
-          (data.status === "pending" || data.status === "paid") &&
-          (!data.cancelStatus || data.cancelStatus === "none");
+      const total = document.createElement("div");
+      total.className = "order-total";
+      total.textContent = "訂單總額：NT$ " + (o.totalAmount || 0);
 
-        if (canRequestCancel) {
-          const btnCancel = document.createElement("button");
-          btnCancel.className = "btn btn-cancel-request";
-          btnCancel.textContent = "提出取消訂單";
-          btnCancel.addEventListener("click", () => {
-            requestCancel(docSnap.id, data);
-          });
-          actions.appendChild(btnCancel);
-        } else if (data.cancelStatus === "requested") {
-          const tip = document.createElement("div");
-          tip.className = "order-meta";
-          tip.textContent = "（已送出取消申請，等待賣家處理）";
-          actions.appendChild(tip);
-        }
+      const toggle = document.createElement("div");
+      toggle.className = "items-toggle";
+      toggle.textContent = "查看商品明細 ＋";
 
-        // 展開商品列表的連結
-        const toggle = document.createElement("div");
-        toggle.className = "items-toggle";
-        toggle.textContent = "查看商品明細 ＋";
+      const items = document.createElement("div");
+      items.className = "items-list";
 
-        const itemsDiv = document.createElement("div");
-        itemsDiv.className = "items-list";
-
-        if (Array.isArray(data.items)) {
-          data.items.forEach(it => {
-            const line = document.createElement("div");
-            line.textContent = `${it.title || "商品"} x ${it.qty || 1}（單價 NT$ ${it.price || 0}）`;
-            itemsDiv.appendChild(line);
-          });
-        } else {
-          itemsDiv.textContent = "（無商品明細）";
-        }
-
-        toggle.addEventListener("click", () => {
-          if (itemsDiv.style.display === "none" || itemsDiv.style.display === "") {
-            itemsDiv.style.display = "block";
-            toggle.textContent = "收合商品明細 －";
-          } else {
-            itemsDiv.style.display = "none";
-            toggle.textContent = "查看商品明細 ＋";
-          }
-        });
-
-        card.appendChild(header);
-        card.appendChild(meta);
-        card.appendChild(statusLine);
-        card.appendChild(totalDiv);
-        card.appendChild(actions);
-        card.appendChild(toggle);
-        card.appendChild(itemsDiv);
-
-        ordersWrap.appendChild(card);
+      (o.items || []).forEach(it => {
+        const line = document.createElement("div");
+        line.textContent = `${it.title} x ${it.qty}（NT$ ${it.price}）`;
+        items.appendChild(line);
       });
 
-    } catch (err) {
-      console.error(err);
-      globalMsg.textContent = "讀取訂單錯誤：" + err.message;
-    }
-  }
+      toggle.onclick = () => {
+        const open = items.style.display === "block";
+        items.style.display = open ? "none" : "block";
+        toggle.textContent = open ? "查看商品明細 ＋" : "收合商品明細 －";
+      };
 
-  // 買家提出取消
-  async function requestCancel(orderId, data) {
-    const ok = confirm("確定要提出取消這筆訂單嗎？\n（送出後需等待賣家同意或拒絕）");
-    if (!ok) return;
-
-    let reason = prompt("可以填寫取消原因（可留空）：", "");
-    if (reason === null) reason = ""; // 按取消就當空字串
-
-    try {
-      await updateDoc(doc(db, "orders", orderId), {
-        cancelStatus: "requested",
-        cancelReason: reason,
-        cancelRequestBy: currentBuyerUid,
-        cancelRequestAt: serverTimestamp()
-      });
-      alert("已送出取消申請！");
-      await loadOrders();
-    } catch (err) {
-      console.error(err);
-      alert("送出取消申請失敗：" + err.message);
-    }
+      card.append(header, time, total, toggle, items);
+      ordersWrap.appendChild(card);
+    });
   }
 </script>
 </body>

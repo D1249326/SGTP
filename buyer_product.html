@@ -12,18 +12,50 @@
     header h1 { margin:0; font-size:22px; }
     .header-right a { color:#fff; text-decoration:none; margin-left:12px; font-size:14px; }
 
-    .container {
-      max-width:900px; margin:24px auto; padding:0 16px;
-    }
+    .container { max-width:900px; margin:24px auto; padding:0 16px; }
     .card {
       background:#fff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.15);
       display:flex; flex-wrap:wrap; overflow:hidden;
     }
+
+    /* 圖片區 */
     .img-side {
       flex:0 0 360px; min-width:280px; background:#eee;
-      display:flex; align-items:center; justify-content:center;
+      display:flex; flex-direction:column;
     }
-    .img-side img { width:100%; height:100%; object-fit:cover; }
+    .main-img-wrap{
+      width:100%;
+      height:360px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      overflow:hidden;
+      background:#eee;
+    }
+    .main-img-wrap img{
+      width:100%; height:100%; object-fit:cover;
+    }
+    .thumbs{
+      display:flex;
+      gap:8px;
+      padding:10px;
+      overflow-x:auto;
+      background:#fafafa;
+      border-top:1px solid #eee;
+    }
+    .thumb{
+      width:64px; height:64px;
+      border-radius:6px;
+      overflow:hidden;
+      border:2px solid transparent;
+      cursor:pointer;
+      background:#eaeaea;
+      flex:0 0 auto;
+    }
+    .thumb img{
+      width:100%; height:100%; object-fit:cover;
+    }
+    .thumb.active{ border-color:#1f354d; }
 
     .info-side {
       flex:1; padding:20px 24px;
@@ -32,7 +64,21 @@
     .title { font-size:22px; font-weight:bold; }
     .price { font-size:20px; color:#c0392b; font-weight:bold; }
     .stock { font-size:14px; color:#555; }
-    .desc { margin-top:12px; line-height:1.5; font-size:15px; color:#333; white-space:pre-wrap; }
+    .small { font-size:13px; color:#777; }
+
+    /* ⭐ 分類標籤 */
+    .cat-tag {
+      display:inline-block;
+      width:fit-content;
+      font-size:12px;
+      color:#1f354d;
+      background:#eef3fa;
+      padding:3px 10px;
+      border-radius:999px;
+      margin-top:2px;
+    }
+
+    .desc { margin-top:12px; line-height:1.5; font-size:15px; white-space:pre-wrap; }
     .btn-row { margin-top:20px; display:flex; gap:10px; flex-wrap:wrap; }
 
     .btn {
@@ -45,14 +91,13 @@
     .msg { margin-top:16px; font-size:14px; color:#c0392b; }
     .msg-ok { color:#27ae60; }
 
-    .qty-box {
-      margin-top:10px;
-      font-size:14px;
-    }
-    .qty-box input {
-      width:70px;
-      padding:6px;
-      font-size:14px;
+    .qty-box { margin-top:10px; font-size:14px; }
+    .qty-box input { width:90px; padding:6px; }
+
+    .loading, .notfound{
+      padding:14px 0;
+      color:#555;
+      text-align:center;
     }
   </style>
 </head>
@@ -66,34 +111,37 @@
 </header>
 
 <div class="container">
-  <div id="loading">載入中...</div>
-  <div id="notFound" style="display:none;">找不到此商品（可能已被下架）。</div>
+  <div id="loading" class="loading">載入中...</div>
+  <div id="notFound" class="notfound" style="display:none;">找不到此商品。</div>
 
   <div id="productCard" class="card" style="display:none;">
     <div class="img-side">
-      <img id="prodImg" src="" alt="商品圖片" />
+      <div class="main-img-wrap">
+        <img id="prodImg" src="" />
+      </div>
+      <div id="thumbs" class="thumbs" style="display:none;"></div>
     </div>
 
     <div class="info-side">
-      <div class="title" id="prodTitle">商品名稱</div>
-      <div class="price" id="prodPrice">NT$ 0</div>
-      <div class="stock" id="prodStock">庫存：0</div>
+      <div class="title" id="prodTitle"></div>
 
-      <!-- ⭐ 賣家名稱 -->
+      <!-- ⭐ 分類 -->
+      <div class="cat-tag" id="prodCategory"></div>
+
+      <div class="price" id="prodPrice"></div>
+      <div class="stock" id="prodStock"></div>
       <div class="small" id="prodSeller"></div>
 
       <div class="desc" id="prodDesc"></div>
 
-      <!-- ⭐ 數量輸入 -->
       <div class="qty-box">
         購買數量：
         <input id="buyQty" type="number" min="1" value="1">
+        <span class="small" id="qtyHint"></span>
       </div>
 
       <div class="btn-row">
-        <button class="btn btn-back" onclick="location.href='buyer_shop.html'">
-          &lt; 回商品列表
-        </button>
+        <button class="btn btn-back" onclick="location.href='buyer_shop.html'">&lt; 回商品列表</button>
         <button class="btn btn-cart" id="btnAddCart">加入購物車</button>
       </div>
 
@@ -104,9 +152,7 @@
 
 <script type="module">
   import { auth, db } from "./firebase.js";
-  import {
-    onAuthStateChanged
-  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
   import {
     doc, getDoc, setDoc, updateDoc,
     serverTimestamp, increment
@@ -114,119 +160,130 @@
 
   const FALLBACK_IMG = "https://via.placeholder.com/400x300?text=No+Image";
 
-  const imgEl = document.getElementById("prodImg");
+  const prodCategoryEl = document.getElementById("prodCategory");
   const titleEl = document.getElementById("prodTitle");
   const priceEl = document.getElementById("prodPrice");
   const stockEl = document.getElementById("prodStock");
   const sellerEl = document.getElementById("prodSeller");
   const descEl = document.getElementById("prodDesc");
+  const imgEl = document.getElementById("prodImg");
+  const thumbsEl = document.getElementById("thumbs");
+
+  const loadingEl = document.getElementById("loading");
+  const notFoundEl = document.getElementById("notFound");
+  const cardEl = document.getElementById("productCard");
+
   const qtyInput = document.getElementById("buyQty");
+  const qtyHint = document.getElementById("qtyHint");
   const msgEl = document.getElementById("msg");
   const btnAddCart = document.getElementById("btnAddCart");
 
-  let currentProductId = null;
   let currentProductData = null;
   let currentBuyerUid = null;
 
-  const params = new URLSearchParams(window.location.search);
-  const pid = params.get("pid");
-
-  if (pid) {
-    currentProductId = pid;
+  const pid = new URLSearchParams(location.search).get("pid");
+  if (!pid) {
+    loadingEl.style.display = "none";
+    notFoundEl.style.display = "block";
+  } else {
     loadProduct(pid);
   }
 
-  // 監聽登入
-  onAuthStateChanged(auth, (user) => {
+  onAuthStateChanged(auth, user => {
     currentBuyerUid = user ? user.uid : null;
   });
 
-  // ⭐ 讀取商品並查「賣家名稱」
-  async function loadProduct(productId) {
-    try {
-      const ref = doc(db, "products", productId);
-      const snap = await getDoc(ref);
-
-      document.getElementById("loading").style.display = "none";
-
-      if (!snap.exists()) {
-        document.getElementById("notFound").style.display = "block";
-        return;
-      }
-
-      const data = snap.data();
-      currentProductData = data;
-
-      imgEl.src = data.image || FALLBACK_IMG;
-      titleEl.textContent = data.title || "";
-      priceEl.textContent = "NT$ " + data.price;
-      stockEl.textContent = "庫存：" + data.stock;
-      descEl.textContent = data.desc || "";
-
-      // ⭐ 查詢賣家名稱
-      if (data.sellerId) {
-        const sellerRef = doc(db, "users", data.sellerId);
-        const sellerSnap = await getDoc(sellerRef);
-
-        if (sellerSnap.exists()) {
-          sellerEl.textContent = "賣家：" + (sellerSnap.data().name || "未命名賣家");
-        } else {
-          sellerEl.textContent = "賣家：未知";
-        }
-      }
-
-      document.getElementById("productCard").style.display = "flex";
-
-    } catch (err) {
-      console.error(err);
-      msgEl.textContent = "載入商品發生錯誤：" + err.message;
-    }
+  function pickImages(d) {
+    if (Array.isArray(d.images) && d.images.length) return d.images;
+    if (d.image) return [d.image];
+    return [FALLBACK_IMG];
   }
 
-  // ⭐ 加入購物車（含購買數量）
-  btnAddCart.addEventListener("click", async () => {
-    msgEl.textContent = "";
-    msgEl.classList.remove("msg-ok");
+  function renderGallery(images) {
+    imgEl.src = images[0];
+    thumbsEl.innerHTML = "";
 
+    if (images.length <= 1) {
+      thumbsEl.style.display = "none";
+      return;
+    }
+
+    thumbsEl.style.display = "flex";
+    images.forEach((url, i) => {
+      const t = document.createElement("div");
+      t.className = "thumb" + (i === 0 ? " active" : "");
+      const im = document.createElement("img");
+      im.src = url;
+      t.appendChild(im);
+
+      t.onclick = () => {
+        imgEl.src = url;
+        document.querySelectorAll(".thumb").forEach(x => x.classList.remove("active"));
+        t.classList.add("active");
+      };
+      thumbsEl.appendChild(t);
+    });
+  }
+
+  async function loadProduct(id) {
+    const snap = await getDoc(doc(db, "products", id));
+    loadingEl.style.display = "none";
+
+    if (!snap.exists()) {
+      notFoundEl.style.display = "block";
+      return;
+    }
+
+    const d = snap.data();
+    currentProductData = d;
+
+    renderGallery(pickImages(d));
+
+    titleEl.textContent = d.title || "";
+    prodCategoryEl.textContent = d.category || "其他";
+    priceEl.textContent = "NT$ " + (d.price ?? 0);
+    stockEl.textContent = "庫存：" + (d.stock ?? 0);
+    descEl.textContent = d.desc || "";
+
+    if (d.sellerId) {
+      const s = await getDoc(doc(db, "users", d.sellerId));
+      sellerEl.textContent = "賣家：" + (s.exists() ? (s.data().name || s.data().email) : "未知");
+    }
+
+    cardEl.style.display = "flex";
+  }
+
+  btnAddCart.onclick = async () => {
     if (!currentBuyerUid) {
-      alert("請先登入買家帳號！");
-      return window.location.href = "buyer_login.html";
+      alert("請先登入");
+      location.href = "buyer_login.html";
+      return;
     }
 
-    const qty = Number(qtyInput.value);
-    if (qty <= 0) return msgEl.textContent = "購買數量必須大於 0";
+    const qty = Math.max(1, Number(qtyInput.value));
+    const cartRef = doc(db, "carts", currentBuyerUid, "items", pid);
 
-    try {
-      btnAddCart.disabled = true;
-      btnAddCart.textContent = "加入中...";
+    const images = pickImages(currentProductData);
+    const cover = images[0];
 
-      const cartRef = doc(db, "carts", currentBuyerUid, "items", currentProductId);
-      const cartSnap = await getDoc(cartRef);
-
-      if (cartSnap.exists()) {
-        await updateDoc(cartRef, { qty: increment(qty) });
-      } else {
-        await setDoc(cartRef, {
-          productId: currentProductId,
-          title: currentProductData.title,
-          price: currentProductData.price,
-          image: currentProductData.image || "",
-          sellerId: currentProductData.sellerId || "",
-          qty,
-          createdAt: serverTimestamp()
-        });
-      }
-
-      msgEl.classList.add("msg-ok");
-      msgEl.textContent = "已加入購物車！";
-
-    } catch (err) {
-      msgEl.textContent = "加入失敗：" + err.message;
-    } finally {
-      btnAddCart.disabled = false;
-      btnAddCart.textContent = "加入購物車";
+    const snap = await getDoc(cartRef);
+    if (snap.exists()) {
+      await updateDoc(cartRef, { qty: increment(qty) });
+    } else {
+      await setDoc(cartRef, {
+        productId: pid,
+        title: currentProductData.title,
+        price: currentProductData.price,
+        image: cover,
+        images,
+        qty,
+        createdAt: serverTimestamp()
+      });
     }
-  });
+
+    msgEl.className = "msg msg-ok";
+    msgEl.textContent = "已加入購物車";
+  };
 </script>
 
 </body>

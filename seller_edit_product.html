@@ -24,7 +24,7 @@
     h2 { margin-top:0; }
 
     label { display:block; margin-top:12px; font-size:14px; }
-    input, textarea {
+    input, textarea, select {
       width:100%; padding:8px; margin-top:4px; box-sizing:border-box;
       border-radius:4px; border:1px solid #ccc; font-family:inherit;
     }
@@ -48,24 +48,53 @@
     .back-link { margin-top:12px; font-size:14px; }
     .back-link a { color:#1f354d; text-decoration:none; }
 
-    /* 圖片預覽 */
+    /* 圖片預覽區 */
     .img-preview-wrap {
       margin-top:8px;
       padding:8px;
       background:#fafafa;
       border:1px solid #eee;
       border-radius:4px;
-      text-align:center;
-    }
-    .img-preview-wrap img {
-      max-width:100%;
-      max-height:200px;
-      object-fit:contain;
     }
     .img-preview-label {
       font-size:12px;
       color:#777;
-      margin-bottom:4px;
+      margin-bottom:6px;
+    }
+    .thumb-list {
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+    }
+    .thumb-item {
+      width:80px;
+      height:80px;
+      border-radius:4px;
+      overflow:hidden;
+      background:#eee;
+      position:relative;
+      font-size:11px;
+      color:#333;
+    }
+    .thumb-item img {
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+    }
+    .thumb-badge {
+      position:absolute;
+      left:2px;
+      top:2px;
+      background:rgba(0,0,0,0.6);
+      color:white;
+      padding:1px 4px;
+      border-radius:3px;
+      font-size:10px;
+    }
+    .thumb-empty {
+      font-size:12px;
+      color:#999;
     }
   </style>
 </head>
@@ -89,6 +118,18 @@
     <label>商品名稱</label>
     <input id="prodTitle" type="text" />
 
+    <!-- ⭐ 新增：商品分類 -->
+    <label>商品分類</label>
+    <select id="prodCategory">
+      <option value="">請選擇分類</option>
+      <option value="運動器材">運動器材</option>
+      <option value="3C產品">3C產品</option>
+      <option value="衣服">衣服</option>
+      <option value="生活雜務">生活雜務</option>
+      <option value="書籍">書籍</option>
+      <option value="其他">其他</option>
+    </select>
+
     <label>價格 (NT$)</label>
     <input id="prodPrice" type="number" min="0" />
 
@@ -98,16 +139,21 @@
     <label>商品描述（可選）</label>
     <textarea id="prodDesc"></textarea>
 
-    <!-- ⭐ 新增：圖片 URL & 預覽 -->
-    <label>商品圖片網址（可選）</label>
-    <input id="prodImageUrl" type="text" placeholder="請貼上圖片 URL，例如 https://..." />
+    <!-- ⭐ 多張圖片輸入：每行一張網址 -->
+    <label>商品圖片網址（可多張，一行一張）</label>
+    <textarea
+      id="prodImages"
+      placeholder="例：&#10;https://example.com/pic1.jpg&#10;https://example.com/pic2.jpg"
+    ></textarea>
+
+    <!-- 多張圖片預覽 -->
     <div class="img-preview-wrap">
-      <div class="img-preview-label">目前圖片預覽：</div>
-      <img id="imgPreview" src="" alt="商品圖片預覽" />
+      <div class="img-preview-label">圖片預覽（第 1 張會作為封面顯示）：</div>
+      <div id="imgPreviewList" class="thumb-list"></div>
     </div>
 
     <button id="btnSave" class="main-btn">儲存變更</button>
-    <!-- ⭐ 新增：刪除商品按鈕 -->
+    <!-- 刪除商品 -->
     <button id="btnDelete" class="sub-btn btn-danger">刪除商品（無法復原）</button>
 
     <div id="msgError" class="msg-error"></div>
@@ -140,11 +186,17 @@
 
   const titleBar   = $("titleBar");
   const titleInput = $("prodTitle");
+
+  // ⭐ 新增：分類欄位元素
+  const categorySelect = $("prodCategory");
+
   const priceInput = $("prodPrice");
   const stockInput = $("prodStock");
   const descInput  = $("prodDesc");
-  const imageInput = $("prodImageUrl");
-  const imgPreview = $("imgPreview");
+
+  // ⭐ 多圖相關元素
+  const imagesInput   = $("prodImages");
+  const imgPreviewList = $("imgPreviewList");
 
   const btnSave    = $("btnSave");
   const btnDelete  = $("btnDelete");
@@ -154,7 +206,7 @@
 
   const FALLBACK_IMG = "https://via.placeholder.com/400x300?text=No+Image";
 
-  // 拿 URL 的 pid
+  // URL pid
   const params = new URLSearchParams(window.location.search);
   const pid = params.get("pid");
 
@@ -166,12 +218,43 @@
     notFoundEl.style.display = "block";
   }
 
-  // 預覽圖片
-  function refreshPreview() {
-    const url = imageInput.value.trim();
-    imgPreview.src = url || FALLBACK_IMG;
+  // 渲染圖片預覽
+  function renderPreview() {
+    imgPreviewList.innerHTML = "";
+    const raw = imagesInput.value
+      .split("\n")
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    if (!raw.length) {
+      const span = document.createElement("div");
+      span.className = "thumb-empty";
+      span.textContent = "尚未設定圖片。";
+      imgPreviewList.appendChild(span);
+      return;
+    }
+
+    raw.forEach((url, idx) => {
+      const wrap = document.createElement("div");
+      wrap.className = "thumb-item";
+
+      const img = document.createElement("img");
+      img.src = url;
+      img.onerror = () => { img.src = FALLBACK_IMG; };
+      wrap.appendChild(img);
+
+      if (idx === 0) {
+        const badge = document.createElement("div");
+        badge.className = "thumb-badge";
+        badge.textContent = "封面";
+        wrap.appendChild(badge);
+      }
+
+      imgPreviewList.appendChild(wrap);
+    });
   }
-  imageInput.addEventListener("input", refreshPreview);
+
+  imagesInput.addEventListener("input", renderPreview);
 
   // 1. 確認登入、角色是 seller
   onAuthStateChanged(auth, async (user) => {
@@ -218,21 +301,29 @@
       const data = snap.data();
       currentProductData = data;
 
-      // 只允許「自己的商品」編輯 / 刪除
+      // 只允許自己的商品
       if (!data.sellerId || data.sellerId !== currentSellerUid) {
         notFoundEl.textContent = "你不是此商品的賣家，無法編輯。";
         notFoundEl.style.display = "block";
         return;
       }
 
-      // 填入欄位
+      // 文字欄位
       titleInput.value = data.title || "";
+      categorySelect.value = data.category || "";  // ⭐ 載入分類
       priceInput.value = (typeof data.price === "number") ? data.price : "";
       stockInput.value = (typeof data.stock === "number") ? data.stock : "";
       descInput.value  = data.desc || "";
-      imageInput.value = data.image || "";
 
-      refreshPreview();
+      // ⭐ 多圖資料：優先 images，其次 image
+      let imgArray = [];
+      if (Array.isArray(data.images) && data.images.length > 0) {
+        imgArray = data.images;
+      } else if (data.image) {
+        imgArray = [data.image];
+      }
+      imagesInput.value = imgArray.join("\n");
+      renderPreview();
 
       titleBar.textContent = "編輯商品 - " + (data.title || "(未命名)");
 
@@ -245,18 +336,22 @@
     }
   }
 
-  // 3. 儲存變更（更新 title / price / stock / desc / image）
+  // 3. 儲存變更
   btnSave.addEventListener("click", async () => {
     msgErrorEl.textContent = "";
     msgOkEl.textContent = "";
 
     const title    = titleInput.value.trim();
+    const category = categorySelect.value; // ⭐ 分類
     const priceStr = priceInput.value;
     const stockStr = stockInput.value;
-    const imageUrl = imageInput.value.trim();
 
     if (!title) {
       msgErrorEl.textContent = "請填寫商品名稱。";
+      return;
+    }
+    if (!category) {
+      msgErrorEl.textContent = "請選擇商品分類。";
       return;
     }
     if (priceStr === "" || stockStr === "") {
@@ -276,6 +371,12 @@
       return;
     }
 
+    // ⭐ 解析多張圖片
+    const imagesArr = imagesInput.value
+      .split("\n")
+      .map(s => s.trim())
+      .filter(Boolean);
+
     try {
       btnSave.disabled = true;
       btnSave.textContent = "儲存中...";
@@ -283,16 +384,18 @@
       const pRef = doc(db, "products", pid);
       await updateDoc(pRef, {
         title,
+        category,                      // ⭐ 存入分類
         price,
         stock,
         desc: descInput.value.trim(),
-        image: imageUrl || null,
+        images: imagesArr,             // 多張圖片
+        image: imagesArr[0] || null,   // 第一張當封面（給其他頁使用）
         updatedAt: serverTimestamp()
       });
 
       msgOkEl.textContent = "已成功更新商品資料！";
       titleBar.textContent = "編輯商品 - " + title;
-      refreshPreview();
+      renderPreview();
     } catch (err) {
       console.error(err);
       msgErrorEl.textContent = "更新失敗：" + err.message;
@@ -338,4 +441,3 @@
 </script>
 </body>
 </html>
-

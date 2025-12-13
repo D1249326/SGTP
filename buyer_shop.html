@@ -5,6 +5,7 @@
   <title>SGTP - 商品列表</title>
   <style>
     body { margin:0; font-family: Arial, sans-serif; background:#f5f5f5; }
+
     header {
       background:#1f354d; color:#fff; padding:16px 24px;
       display:flex; justify-content:space-between; align-items:center;
@@ -14,45 +15,91 @@
     .header-right a { color:#fff; text-decoration:none; margin-left:12px; }
 
     .container { max-width:960px; margin:24px auto; padding:0 16px; }
-    .search-bar { margin-bottom:16px; }
-    .search-input {
-      width:100%; padding:8px; border-radius:4px;
-      border:1px solid #ccc; box-sizing:border-box;
-    }
 
+    /* ===== 搜尋 + 分類 ===== */
+    .toolbar {
+      display:flex;
+      gap:10px;
+      margin-bottom:16px;
+      flex-wrap:wrap;
+    }
+    .search-input, .filter-select {
+      padding:8px;
+      border-radius:4px;
+      border:1px solid #ccc;
+      background:#fff;
+      font-size:14px;
+    }
+    .search-input { flex:1; min-width:220px; }
+    .filter-select { width:180px; }
+
+    /* ===== 商品卡片 ===== */
     .grid {
       display:grid;
       grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
       gap:16px;
     }
+
     .card {
-      background:#fff; border-radius:8px; overflow:hidden;
+      background:#fff;
+      border-radius:8px;
+      overflow:hidden;
       box-shadow:0 2px 6px rgba(0,0,0,0.12);
-      display:flex; flex-direction:column;
+      display:flex;
+      flex-direction:column;
+      cursor:pointer;
       transition:0.2s ease;
     }
     .card:hover {
       transform: translateY(-2px);
       box-shadow:0 4px 10px rgba(0,0,0,0.16);
     }
+
     .card-img-wrapper {
-      width:100%; height:160px; overflow:hidden;
+      width:100%;
+      height:160px;
       background:#eee;
-      display:flex; justify-content:center; align-items:center;
+      overflow:hidden;
     }
     .card-img-wrapper img {
-      width:100%; height:100%; object-fit:cover;
+      width:100%;
+      height:100%;
+      object-fit:cover;
     }
 
     .card-body {
       padding:12px;
-      display:flex; flex-direction:column; gap:6px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
     }
-    .card-title { font-weight:bold; color:#333; font-size:16px; }
-    .card-price { color:#c0392b; font-weight:bold; }
-    .card-desc { font-size:13px; color:#777; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-    /* 按鈕：現在是「查看商品」 */
+    .card-title { font-weight:bold; font-size:16px; color:#333; }
+    .card-price { color:#c0392b; font-weight:bold; }
+    .card-desc {
+      font-size:13px;
+      color:#777;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    /* 分類標籤 */
+    .card-cat {
+      display:inline-block;
+      font-size:12px;
+      color:#1f354d;
+      background:#eef3fa;
+      padding:2px 8px;
+      border-radius:999px;
+      width:fit-content;
+    }
+
+    .multi-img-tip {
+      font-size:11px;
+      color:#999;
+    }
+
     .btn-cart {
       margin-top:8px;
       padding:6px;
@@ -60,14 +107,19 @@
       color:white;
       border:none;
       border-radius:4px;
-      cursor:pointer;
       font-size:13px;
+      cursor:pointer;
     }
     .btn-cart:hover { background:#274563; }
 
-    .empty { margin-top:30px; text-align:center; color:#777; }
+    .empty {
+      margin-top:30px;
+      text-align:center;
+      color:#777;
+    }
   </style>
 </head>
+
 <body>
 
 <header>
@@ -81,56 +133,88 @@
 </header>
 
 <div class="container">
-  <div class="search-bar">
+
+  <!-- 搜尋 / 分類 -->
+  <div class="toolbar">
     <input id="searchInput" class="search-input" placeholder="搜尋商品名稱..." />
+    <select id="categoryFilter" class="filter-select">
+      <option value="全部">全部分類</option>
+      <option value="運動器材">運動器材</option>
+      <option value="3C產品">3C產品</option>
+      <option value="衣服">衣服</option>
+      <option value="生活雜務">生活雜務</option>
+      <option value="書籍">書籍</option>
+      <option value="其他">其他</option>
+    </select>
   </div>
 
   <div id="productGrid" class="grid"></div>
-  <div id="emptyMsg" class="empty" style="display:none;">目前沒有任何商品。</div>
+  <div id="emptyMsg" class="empty" style="display:none;">
+    目前沒有任何商品
+  </div>
+
 </div>
 
 <script type="module">
   import { auth, db } from "./firebase.js";
+  import { onAuthStateChanged } from
+    "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
   import {
     collection, getDocs, query, orderBy
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
   const productGrid = document.getElementById("productGrid");
   const emptyMsg = document.getElementById("emptyMsg");
   const searchInput = document.getElementById("searchInput");
+  const categoryFilter = document.getElementById("categoryFilter");
 
-  let buyerUid = null;
   let allProducts = [];
-
   const FALLBACK_IMG = "https://via.placeholder.com/400x300?text=No+Image";
 
-  onAuthStateChanged(auth, (user) => {
-    if (user) buyerUid = user.uid;
-  });
+  onAuthStateChanged(auth, () => {});
 
   async function loadProducts() {
-    try {
-      const q = query(collection(db, "products"), orderBy("createdAt", "desc"));
-      const snap = await getDocs(q);
+    const q = query(
+      collection(db, "products"),
+      orderBy("createdAt", "desc")
+    );
 
-      allProducts = [];
-      snap.forEach(docSnap => {
-        const d = docSnap.data();
-        allProducts.push({
-          id: docSnap.id,
-          title: d.title,
-          price: d.price,
-          desc: d.desc,
-          image: d.image
-        });
+    const snap = await getDocs(q);
+    allProducts = [];
+
+    snap.forEach(docSnap => {
+      const d = docSnap.data();
+      const images = Array.isArray(d.images) ? d.images : [];
+      const cover =
+        (images.length > 0 && images[0]) ||
+        d.image ||
+        FALLBACK_IMG;
+
+      allProducts.push({
+        id: docSnap.id,
+        title: d.title || "未命名商品",
+        price: typeof d.price === "number" ? d.price : 0,
+        desc: d.desc || "",
+        category: d.category || "其他",
+        images,
+        cover
       });
+    });
 
-      render(allProducts);
-    } catch (err) {
-      console.error(err);
-      productGrid.innerHTML = "載入商品錯誤：" + err.message;
-    }
+    applyFilters();
+  }
+
+  function applyFilters() {
+    const key = (searchInput.value || "").toLowerCase().trim();
+    const cat = categoryFilter.value;
+
+    const list = allProducts.filter(p => {
+      const matchName = p.title.toLowerCase().includes(key);
+      const matchCat = (cat === "全部") || (p.category === cat);
+      return matchName && matchCat;
+    });
+
+    render(list);
   }
 
   function render(list) {
@@ -145,49 +229,32 @@
       const card = document.createElement("div");
       card.className = "card";
 
-      const imgWrapper = document.createElement("div");
-      imgWrapper.className = "card-img-wrapper";
-      const img = document.createElement("img");
-      img.src = p.image || FALLBACK_IMG;
-      img.onerror = () => img.src = FALLBACK_IMG;
-      imgWrapper.appendChild(img);
-
-      const body = document.createElement("div");
-      body.className = "card-body";
-
-      body.innerHTML = `
-        <div class="card-title">${p.title}</div>
-        <div class="card-price">NT$ ${p.price}</div>
-        <div class="card-desc">${p.desc || ""}</div>
+      card.innerHTML = `
+        <div class="card-img-wrapper">
+          <img src="${p.cover}" onerror="this.src='${FALLBACK_IMG}'">
+        </div>
+        <div class="card-body">
+          <div class="card-title">${p.title}</div>
+          <div class="card-price">NT$ ${p.price}</div>
+          <div class="card-desc">${p.desc}</div>
+          <div class="card-cat">${p.category}</div>
+          ${p.images.length > 1
+            ? `<div class="multi-img-tip">共有 ${p.images.length} 張圖片</div>`
+            : ""}
+          <button class="btn-cart">查看商品</button>
+        </div>
       `;
 
-      // ⭐ 按鈕改成「查看商品」，並連到 buyer_product.html
-      const detailBtn = document.createElement("button");
-      detailBtn.className = "btn-cart";
-      detailBtn.textContent = "查看商品";
-      detailBtn.addEventListener("click", (e) => {
-        e.stopPropagation(); // 不要觸發 card 整張的 click
+      card.onclick = () => {
         window.location.href = `buyer_product.html?pid=${p.id}`;
-      });
-
-      body.appendChild(detailBtn);
-
-      card.appendChild(imgWrapper);
-      card.appendChild(body);
-
-      // 點整張卡片也可以進入商品詳細
-      card.addEventListener("click", () => {
-        window.location.href = `buyer_product.html?pid=${p.id}`;
-      });
+      };
 
       productGrid.appendChild(card);
     });
   }
 
-  searchInput.addEventListener("input", () => {
-    const key = searchInput.value.toLowerCase();
-    render(allProducts.filter(p => (p.title || "").toLowerCase().includes(key)));
-  });
+  searchInput.addEventListener("input", applyFilters);
+  categoryFilter.addEventListener("change", applyFilters);
 
   loadProducts();
 </script>

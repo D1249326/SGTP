@@ -22,10 +22,10 @@
     }
     h2 { margin-top:0; }
     label { display:block; margin-top:12px; font-size:14px; }
-    input, textarea {
+    input, textarea, select {
       width:100%; padding:8px; margin-top:4px; box-sizing:border-box;
       border-radius:4px; border:1px solid #ccc;
-      font-family:inherit;
+      font-family:inherit; font-size:14px;
     }
     textarea { min-height:100px; resize:vertical; }
     button.main-btn {
@@ -38,7 +38,6 @@
     .success { margin-top:10px; color:#27ae60; font-size:14px; }
     .back { margin-top:12px; font-size:14px; }
     .back a { color:#1f354d; text-decoration:none; }
-
     .hint { font-size:12px; color:#777; margin-top:2px; }
   </style>
 </head>
@@ -59,13 +58,24 @@
   <label>商品名稱</label>
   <input id="title" type="text" />
 
+  <label>商品分類</label>
+  <select id="category">
+    <option value="">請選擇分類</option>
+    <option value="運動器材">運動器材</option>
+    <option value="3C產品">3C產品</option>
+    <option value="衣服">衣服</option>
+    <option value="生活雜務">生活雜務</option>
+    <option value="書籍">書籍</option>
+    <option value="其他">其他</option>
+  </select>
+
   <label>價格 (NT$)</label>
   <input id="price" type="number" min="0" />
 
   <label>庫存數量</label>
   <input id="stock" type="number" min="0" />
 
-  <!-- ⭐ 改成多張圖片：一行一個網址 -->
+  <!-- ⭐ 多張圖片：一行一個網址 -->
   <label>商品圖片網址（可多張，一行一張）</label>
   <textarea id="imageUrls"
     placeholder="例如：
@@ -140,7 +150,7 @@ https://example.com/photo2.jpg"></textarea>
     }
   });
 
-  // --- 上架商品（多張 imageUrls） ---
+  // --- 上架商品（分類 + 多張 imageUrls） ---
   btnAdd.addEventListener("click", async () => {
     msgEl.textContent = "";
     okEl.textContent = "";
@@ -151,6 +161,7 @@ https://example.com/photo2.jpg"></textarea>
     }
 
     const title = $("title").value.trim();
+    const category = $("category").value;
     const priceStr = $("price").value;
     const stockStr = $("stock").value;
     const imageUrlsRaw = $("imageUrls").value;
@@ -158,6 +169,10 @@ https://example.com/photo2.jpg"></textarea>
 
     if (!title || !priceStr) {
       msgEl.textContent = "請至少填寫商品名稱與價格。";
+      return;
+    }
+    if (!category) {
+      msgEl.textContent = "請選擇商品分類。";
       return;
     }
 
@@ -189,12 +204,11 @@ https://example.com/photo2.jpg"></textarea>
       const productsRef = collection(db, "products");
       const docRef = await addDoc(productsRef, {
         title,
+        category,                // ⭐ 新增分類
         price,
         stock,
-        // ⭐ 第一張當封面，給舊頁面用
-        image: images[0] || "",
-        // ⭐ 同時存整個陣列，之後可以在商品頁做輪播
-        images,
+        image: images[0] || "",  // ⭐ 封面圖（相容舊頁）
+        images,                  // ⭐ 多圖
         desc,
         sellerId: currentSellerId,
         createdAt: serverTimestamp()
@@ -204,6 +218,7 @@ https://example.com/photo2.jpg"></textarea>
 
       // 清空輸入
       $("title").value = "";
+      $("category").value = "";
       $("price").value = "";
       $("stock").value = "";
       $("imageUrls").value = "";
