@@ -150,6 +150,7 @@
   </div>
 </div>
 
+<<<<<<< HEAD
 <script type="module">
   import { auth, db } from "./firebase.js";
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
@@ -285,6 +286,49 @@
     msgEl.textContent = "已加入購物車";
   };
 </script>
+=======
+  <script>
+  const FALLBACK_IMG = 'https://via.placeholder.com/400x300?text=No+Image';
+  const imgEl = document.getElementById('prodImg'); const titleEl = document.getElementById('prodTitle'); const priceEl = document.getElementById('prodPrice'); const stockEl = document.getElementById('prodStock'); const sellerEl = document.getElementById('prodSeller'); const descEl = document.getElementById('prodDesc'); const qtyInput = document.getElementById('buyQty'); const msgEl = document.getElementById('msg'); const btnAddCart = document.getElementById('btnAddCart');
+  let currentProductId = null; let currentProductData = null; let currentUser = null;
+  const params = new URLSearchParams(window.location.search); const pid = params.get('pid'); if (pid) { currentProductId = pid; loadProduct(pid); }
+  function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{ 'Authorization':'Bearer '+t, 'Content-Type':'application/json' } : { 'Content-Type':'application/json' }; }
+
+  async function loadProduct(productId){
+    try{
+      const res = await fetch('/api/products/' + encodeURIComponent(productId));
+      if (!res.ok) { document.getElementById('loading').style.display='none'; document.getElementById('notFound').style.display='block'; return; }
+      const p = await res.json(); currentProductData = p;
+      imgEl.src = (p.image || (p.images && p.images[0]) || FALLBACK_IMG);
+      titleEl.textContent = p.title || '';
+      priceEl.textContent = 'NT$ ' + (p.price || 0);
+      stockEl.textContent = '庫存：' + (p.quantity != null ? p.quantity : (p.stock != null ? p.stock : 0));
+      descEl.textContent = p.description || p.desc || '';
+      if (p.seller_id) {
+        try{ const s = await fetch('/api/users/' + encodeURIComponent(p.seller_id)); if (s.ok){ const js = await s.json(); sellerEl.textContent = '賣家：' + (js.name || '未命名賣家'); } else { sellerEl.textContent = '賣家：未知'; } } catch(e){ sellerEl.textContent = '賣家：未知'; }
+      }
+      document.getElementById('loading').style.display = 'none'; document.getElementById('productCard').style.display = 'flex';
+    }catch(err){ console.error(err); msgEl.textContent = '載入商品發生錯誤：' + (err.message||err); }
+  }
+
+  // 加入購物車
+  btnAddCart.addEventListener('click', async ()=>{
+    msgEl.textContent = ''; msgEl.classList.remove('msg-ok');
+    try{
+      const me = await fetch('/api/auth/me', { headers: getAuthHeader() });
+      if (!me.ok) { alert('請先登入買家帳號！'); window.location.href='buyer_login.html'; return; }
+      currentUser = await me.json();
+      if (!currentUser || currentUser.role !== 'buyer') { alert('請使用買家帳號登入'); return; }
+      const qty = Number(qtyInput.value); if (qty <= 0) return msgEl.textContent = '購買數量必須大於 0';
+      btnAddCart.disabled = true; btnAddCart.textContent = '加入中...';
+      const payload = { productId: currentProductId, title: currentProductData.title, price: currentProductData.price, qty: qty, image: (currentProductData.image || ''), sellerId: currentProductData.seller_id || currentProductData.sellerId || null };
+      const res = await fetch('/api/cart/items', { method: 'POST', headers: getAuthHeader(), body: JSON.stringify(payload) });
+      if (!res.ok) { const e = await res.json().catch(()=>null); throw new Error(e && e.error ? e.error : ('Status ' + res.status)); }
+      msgEl.classList.add('msg-ok'); msgEl.textContent = '已加入購物車！';
+    }catch(err){ console.error(err); msgEl.textContent = '加入失敗：' + (err.message||err); } finally { btnAddCart.disabled=false; btnAddCart.textContent='加入購物車'; }
+  });
+  </script>
+>>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
 
 </body>
 </html>

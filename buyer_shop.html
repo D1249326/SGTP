@@ -155,6 +155,7 @@
 
 </div>
 
+<<<<<<< HEAD
 <script type="module">
   import { auth, db } from "./firebase.js";
   import { onAuthStateChanged } from
@@ -215,6 +216,20 @@
     });
 
     render(list);
+=======
+
+<script>
+  const productGrid = document.getElementById('productGrid');
+  const emptyMsg = document.getElementById('emptyMsg');
+  const searchInput = document.getElementById('searchInput');
+  let allProducts = [];
+  const FALLBACK_IMG = 'https://via.placeholder.com/400x300?text=No+Image';
+
+  async function loadProducts(){
+    try{
+      const res = await fetch('/api/products'); if (!res.ok) throw new Error('載入失敗'); const rows = await res.json(); allProducts = rows.map(r=>({ id: r.id || r.id, title: r.title, price: r.price, desc: r.description || r.desc || '', image: (r.image || (r.images && r.images[0]) || '') })); render(allProducts);
+    }catch(err){ console.error(err); productGrid.innerHTML = '載入商品錯誤：' + (err.message||err); }
+>>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
   }
 
   function render(list) {

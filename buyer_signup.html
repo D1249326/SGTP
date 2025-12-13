@@ -125,59 +125,23 @@
     </div>
   </div>
 
-  <script type="module">
-    import { auth, db } from "./firebase.js";
-    import {
-      createUserWithEmailAndPassword
-    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-    import {
-      doc,
-      setDoc,
-      serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-
-    const form = document.getElementById("signupForm");
-    const successBox = document.getElementById("success");
-    const errorBox = document.getElementById("error");
-
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-
-      successBox.textContent = "";
-      errorBox.textContent = "";
-
-      const name = document.getElementById("name").value.trim();
-      const email = document.getElementById("email").value.trim();
-      const password = document.getElementById("password").value;
-      const phone = document.getElementById("phone").value.trim();
-      const address = document.getElementById("address").value.trim();
-
-      try {
-        // 1. 建立 Firebase Auth 帳號
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
-
-        // 2. 在 Firestore 的 users 集合中建立對應紀錄
-        const uid = cred.user.uid;
-        const userRef = doc(db, "users", uid);
-
-        await setDoc(userRef, {
-          name,
-          email,
-          phone,
-          address,
-          role: "buyer",
-          createdAt: serverTimestamp()
-        });
-
-        successBox.textContent = "註冊成功！即將前往買家首頁…";
-
-        // 3. 短暫停一下再跳轉
-        setTimeout(() => {
-          window.location.href = "buyer_home.html";
-        }, 1000);
-      } catch (err) {
-        errorBox.textContent = "註冊失敗：" + err.message;
-      }
+  <script>
+    const form = document.getElementById('signupForm');
+    const successBox = document.getElementById('success');
+    const errorBox = document.getElementById('error');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault(); successBox.textContent=''; errorBox.textContent='';
+      const name = document.getElementById('name').value.trim(); const email = document.getElementById('email').value.trim(); const password = document.getElementById('password').value; const phone = document.getElementById('phone').value.trim(); const address = document.getElementById('address').value.trim();
+      try{
+        // Call server to register user
+        const res = await fetch('/api/users/register', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ name, email, password, role: 'buyer', phone, address }) });
+        if (!res.ok) { const err = await res.json().catch(()=>null); throw new Error(err && err.error ? err.error : ('Status ' + res.status)); }
+        successBox.textContent = '註冊成功！自動登入中…';
+        // auto-login
+        const login = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ email, password }) });
+        if (!login.ok) { successBox.textContent = ''; const e2 = await login.json().catch(()=>null); throw new Error(e2 && e2.error ? e2.error : '登入失敗'); }
+        const data = await login.json(); localStorage.setItem('token', data.token); setTimeout(()=> window.location.href='buyer_home.html', 800);
+      }catch(err){ console.error(err); errorBox.textContent = '註冊失敗：' + (err.message||err); }
     });
   </script>
 </body>

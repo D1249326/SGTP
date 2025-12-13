@@ -132,6 +132,7 @@
   <div id="ordersWrap"></div>
 </div>
 
+<<<<<<< HEAD
 <script type="module">
   import { auth, db } from "./firebase.js";
   import { onAuthStateChanged, signOut }
@@ -222,6 +223,96 @@
       card.append(header, time, total, toggle, items);
       ordersWrap.appendChild(card);
     });
+=======
+<script>
+  const btnLogout   = document.getElementById('btnLogout');
+  const ordersEmpty = document.getElementById('ordersEmpty');
+  const ordersWrap  = document.getElementById('ordersWrap');
+  const globalMsg   = document.getElementById('globalMsg');
+  const authHeader = () => { const t = localStorage.getItem('token'); return t ? { 'Authorization':'Bearer ' + t } : {}; };
+  let currentUser = null;
+
+  btnLogout.addEventListener('click', ()=>{ localStorage.removeItem('token'); alert('已登出'); window.location.href='buyer_login.html'; });
+
+  (async function(){
+    try{ const me = await fetch('/api/auth/me', { headers: authHeader() }); if (!me.ok) { alert('請先登入買家帳號'); window.location.href='buyer_login.html'; return; } currentUser = await me.json(); if (!currentUser || currentUser.role !== 'buyer') { alert('請用買家帳號登入'); window.location.href='buyer_login.html'; return; } await loadOrders(); }catch(err){ console.error(err); alert('讀取使用者失敗'); window.location.href='buyer_login.html'; }
+  })();
+
+  function formatDate(ts) {
+    if (!ts || !ts.toDate) return "-";
+    const d = ts.toDate();
+    const yyyy = d.getFullYear();
+    const mm   = String(d.getMonth()+1).padStart(2,"0");
+    const dd   = String(d.getDate()).padStart(2,"0");
+    const hh   = String(d.getHours()).padStart(2,"0");
+    const mi   = String(d.getMinutes()).padStart(2,"0");
+    return `${yyyy}/${mm}/${dd} ${hh}:${mi}`;
+  }
+
+  function getStatusBadge(data) {
+    const span = document.createElement("span");
+    span.classList.add("badge");
+
+    // 先處理取消相關
+    if (data.status === "canceled" || data.cancelStatus === "approved") {
+      span.classList.add("badge-canceled");
+      span.textContent = "已取消";
+      return span;
+    }
+    if (data.cancelStatus === "requested") {
+      span.classList.add("badge-cancel-req");
+      span.textContent = "取消申請中";
+      return span;
+    }
+    if (data.cancelStatus === "rejected") {
+      span.classList.add("badge-cancel-rej");
+      span.textContent = "取消被拒絕";
+      return span;
+    }
+
+    // 一般狀態
+    switch (data.status) {
+      case "pending":
+        span.classList.add("badge-pending");
+        span.textContent = "pending";
+        break;
+      case "paid":
+        span.classList.add("badge-paid");
+        span.textContent = "已付款";
+        break;
+      case "shipped":
+        span.classList.add("badge-shipped");
+        span.textContent = "已出貨";
+        break;
+      case "completed":
+        span.classList.add("badge-completed");
+        span.textContent = "已完成";
+        break;
+      default:
+        span.classList.add("badge-pending");
+        span.textContent = data.status || "unknown";
+    }
+    return span;
+  }
+
+  async function loadOrders(){
+    ordersWrap.innerHTML = ''; ordersEmpty.style.display='none'; globalMsg.textContent='';
+    try{
+      const res = await fetch('/api/orders/my', { headers: authHeader() }); if (!res.ok) { throw new Error('無法取得訂單'); }
+      const rows = await res.json(); if (!rows || rows.length===0) { ordersEmpty.style.display='block'; return; }
+      rows.forEach(row => { const data = row; const card = document.createElement('div'); card.className='card'; const header = document.createElement('div'); header.className='order-header'; const idDiv = document.createElement('div'); idDiv.className='order-id'; idDiv.textContent = '訂單編號：' + (row.id || ''); const badge = getStatusBadge(data); header.appendChild(idDiv); header.appendChild(badge); const meta = document.createElement('div'); meta.className='order-meta'; meta.textContent = '訂單日期：' + formatDate(data.created_at || data.createdAt); const statusLine = document.createElement('div'); statusLine.className='order-meta'; statusLine.textContent = '狀態：' + (badge.textContent || data.status); const totalDiv = document.createElement('div'); totalDiv.className='order-total'; totalDiv.textContent = '訂單總額：NT$ ' + (data.totalAmount || 0); const actions = document.createElement('div'); actions.className='order-actions'; const canRequestCancel = (data.status === 'pending' || data.status === 'paid') && (!data.cancelStatus || data.cancelStatus === 'none'); if (canRequestCancel) { const btnCancel = document.createElement('button'); btnCancel.className='btn btn-cancel-request'; btnCancel.textContent='提出取消訂單'; btnCancel.addEventListener('click', ()=> requestCancel(row.id, data)); actions.appendChild(btnCancel); } else if (data.cancelStatus === 'requested') { const tip = document.createElement('div'); tip.className='order-meta'; tip.textContent='（已送出取消申請，等待賣家處理）'; actions.appendChild(tip); } const toggle = document.createElement('div'); toggle.className='items-toggle'; toggle.textContent='查看商品明細 ＋'; const itemsDiv = document.createElement('div'); itemsDiv.className='items-list'; const items = data.items || []; if (Array.isArray(items) && items.length>0) { items.forEach(it => { const line = document.createElement('div'); line.textContent = `${it.title || '商品'} x ${it.qty || 1}（單價 NT$ ${it.price || 0}）`; itemsDiv.appendChild(line); }); } else { itemsDiv.textContent='（無商品明細）'; } toggle.addEventListener('click', ()=>{ if (itemsDiv.style.display === 'none' || itemsDiv.style.display === ''){ itemsDiv.style.display='block'; toggle.textContent='收合商品明細 －'; } else { itemsDiv.style.display='none'; toggle.textContent='查看商品明細 ＋'; } }); card.appendChild(header); card.appendChild(meta); card.appendChild(statusLine); card.appendChild(totalDiv); card.appendChild(actions); card.appendChild(toggle); card.appendChild(itemsDiv); ordersWrap.appendChild(card); });
+    }catch(err){ console.error(err); globalMsg.textContent = '讀取訂單錯誤：' + (err.message||err); }
+  }
+
+  // 買家提出取消
+  async function requestCancel(orderId, data) {
+    const ok = confirm('確定要提出取消這筆訂單嗎？\n（送出後需等待賣家同意或拒絕）'); if (!ok) return; let reason = prompt('可以填寫取消原因（可留空）：', ''); if (reason === null) reason = '';
+    try{
+      const res = await fetch('/api/orders/' + encodeURIComponent(orderId), { method: 'PUT', headers: Object.assign({ 'Content-Type':'application/json' }, authHeader()), body: JSON.stringify({ cancelStatus: 'requested', cancelReason: reason }) });
+      if (!res.ok) { const e = await res.json().catch(()=>null); throw new Error(e && e.error ? e.error : ('Status ' + res.status)); }
+      alert('已送出取消申請！'); await loadOrders();
+    }catch(err){ console.error(err); alert('送出取消申請失敗：' + (err.message||err)); }
+>>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
   }
 </script>
 </body>

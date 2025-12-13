@@ -17,6 +17,35 @@
       justify-content:space-between;
       align-items:center;
     }
+    :root{
+      --base-bg: #f4f7fb;
+      --panel-bg: #ffffff;
+      --brand: #1f354d;
+      --brand-600: #26374b;
+      --danger: #c0392b;
+      --muted: #6b7280;
+      --radius: 8px;
+      --max-width: 1100px;
+    }
+
+    *{box-sizing:border-box}
+    body{font-family:Inter, 'Segoe UI', Roboto, Arial, sans-serif;background:var(--base-bg);margin:0;color:#111}
+    header{background:linear-gradient(90deg,var(--brand-600),var(--brand));color:#fff;padding:18px 24px;display:flex;justify-content:space-between;align-items:center}
+    .admin-nav{background:var(--panel-bg);padding:10px 24px;display:flex;gap:10px;align-items:center;border-bottom:1px solid #e6edf3}
+    .admin-nav a{color:var(--muted);text-decoration:none;padding:8px 12px;border-radius:8px;font-weight:600}
+    .admin-nav a.active{background:var(--brand);color:#fff}
+
+    .container{max-width:var(--max-width);margin:24px auto;padding:0 16px}
+    .panel{background:var(--panel-bg);border-radius:var(--radius);padding:16px;box-shadow:0 6px 18px rgba(31,53,77,0.06)}
+
+    .btn{padding:8px 12px;border-radius:8px;border:none;background:var(--brand);color:#fff;cursor:pointer}
+    .btn-light{background:#ffffff;color:var(--brand);border:1px solid #e6edf3}
+    .btn-danger{background:var(--danger)}
+    .btn-small{padding:6px 10px;border-radius:8px}
+
+    .card{border-radius:var(--radius);padding:12px;margin-bottom:16px;background:var(--panel-bg);box-shadow:0 4px 12px rgba(31,53,77,0.04)}
+    .empty{color:var(--muted);}
+    .order-meta{font-size:13px;color:var(--muted);margin-bottom:6px}
     header h1 { margin:0; font-size:22px; }
     header .right button { margin-left:8px; }
 
@@ -136,6 +165,12 @@
   </div>
 </header>
 
+<div class="admin-nav" style="margin:0 0 8px 0;">
+  <a href="admin_products.html">商品管理</a>
+  <a href="admin_users.html">使用者管理</a>
+  <a href="admin_orders.html" class="active">訂單管理</a>
+</div>
+
 <div class="container">
   <div class="top-card">
     <h2>全部訂單總覽（管理者）</h2>
@@ -155,276 +190,127 @@
   <div id="ordersWrap"></div>
 </div>
 
-<script type="module">
-  import { auth, db } from "./firebase.js";
-  import {
-    onAuthStateChanged,
-    signOut
-  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-  import {
-    collection,
-    query,
-    orderBy,
-    getDocs,
-    doc,
-    getDoc,
-    updateDoc,
-    deleteDoc,
-    serverTimestamp
-  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-
-  const btnLogout   = document.getElementById("btnLogout");
-  const ordersEmpty = document.getElementById("ordersEmpty");
-  const ordersWrap  = document.getElementById("ordersWrap");
-  const globalMsg   = document.getElementById("globalMsg");
+<script>
+  const btnLogout   = document.getElementById('btnLogout');
+  const ordersEmpty = document.getElementById('ordersEmpty');
+  const ordersWrap  = document.getElementById('ordersWrap');
+  const globalMsg   = document.getElementById('globalMsg');
 
   let currentAdminUid = null;
 
-  // 登出
-  btnLogout.addEventListener("click", async () => {
-    try {
-      await signOut(auth);
-      alert("已登出");
-      window.location.href = "buyer_login.html"; // 你也可以改成 admin_login.html
-    } catch (err) {
-      console.error(err);
-      alert("登出失敗：" + err.message);
-    }
+  function getAuthHeader() { const t = localStorage.getItem('token'); return t ? { 'Authorization': 'Bearer ' + t, 'Content-Type':'application/json' } : { 'Content-Type':'application/json' }; }
+
+  // 登出（清除 token）
+  btnLogout.addEventListener('click', () => {
+    localStorage.removeItem('token');
+    alert('已登出');
+    window.location.href = 'admin_login.html';
   });
 
-  // 監聽登入狀態 & 檢查 role
-  onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-      alert("請先登入帳號");
-      window.location.href = "buyer_login.html";
-      return;
-    }
+  // 進入時檢查身分
+  (async function(){
     try {
-      const userRef = doc(db, "users", user.uid);
-      const snap = await getDoc(userRef);
-      if (!snap.exists() || snap.data().role !== "admin") {
-        alert("此帳號不是後台資料管理者，無法進入此頁面。");
-        await signOut(auth);
-        window.location.href = "buyer_login.html";
-        return;
-      }
-      currentAdminUid = user.uid;
+      const res = await fetch('/api/auth/me', { headers: getAuthHeader() });
+      if (!res.ok) { alert('請先登入帳號'); window.location.href = 'admin_login.html'; return; }
+      const user = await res.json();
+      if (!user || user.role !== 'admin') { alert('此帳號不是後台資料管理者，無法進入此頁面。'); localStorage.removeItem('token'); window.location.href = 'admin_login.html'; return; }
+      currentAdminUid = user.id;
       await loadAllOrders();
     } catch (err) {
       console.error(err);
-      alert("讀取使用者資料失敗：" + err.message);
-      window.location.href = "buyer_login.html";
+      alert('讀取使用者資料失敗：' + (err.message || err));
+      window.location.href = 'admin_login.html';
     }
-  });
+  })();
 
-  function formatDate(ts) {
-    if (!ts || !ts.toDate) return "-";
-    const d = ts.toDate();
-    const yyyy = d.getFullYear();
-    const mm   = String(d.getMonth()+1).padStart(2,"0");
-    const dd   = String(d.getDate()).padStart(2,"0");
-    const hh   = String(d.getHours()).padStart(2,"0");
-    const mi   = String(d.getMinutes()).padStart(2,"0");
-    return `${yyyy}/${mm}/${dd} ${hh}:${mi}`;
+  function formatDate(value) {
+    if (!value) return '-';
+    const d = (typeof value === 'string' || typeof value === 'number') ? new Date(value) : (value instanceof Object && value.toDate ? value.toDate() : new Date(value));
+    if (isNaN(d)) return '-';
+    return d.toLocaleString();
   }
 
   function getStatusBadge(data) {
-    const span = document.createElement("span");
-    span.classList.add("badge");
-
-    if (data.status === "canceled" || data.cancelStatus === "approved") {
-      span.classList.add("badge-canceled");
-      span.textContent = "已取消";
-      return span;
-    }
-    if (data.cancelStatus === "requested") {
-      span.classList.add("badge-cancel-req");
-      span.textContent = "取消申請中";
-      return span;
-    }
-    if (data.cancelStatus === "rejected") {
-      span.classList.add("badge-cancel-rej");
-      span.textContent = "取消被拒絕";
-      return span;
-    }
-
+    const span = document.createElement('span'); span.classList.add('badge');
+    if (data.status === 'canceled' || data.cancelStatus === 'approved' || data.cancelStatus === 'admin_canceled') { span.classList.add('badge-canceled'); span.textContent = '已取消'; return span; }
+    if (data.cancelStatus === 'requested') { span.classList.add('badge-cancel-req'); span.textContent = '取消申請中'; return span; }
+    if (data.cancelStatus === 'rejected') { span.classList.add('badge-cancel-rej'); span.textContent = '取消被拒絕'; return span; }
     switch (data.status) {
-      case "pending":
-        span.classList.add("badge-pending");
-        span.textContent = "pending";
-        break;
-      case "paid":
-        span.classList.add("badge-paid");
-        span.textContent = "已付款";
-        break;
-      case "shipped":
-        span.classList.add("badge-shipped");
-        span.textContent = "已出貨";
-        break;
-      case "completed":
-        span.classList.add("badge-completed");
-        span.textContent = "已完成";
-        break;
-      default:
-        span.classList.add("badge-pending");
-        span.textContent = data.status || "unknown";
+      case 'pending': span.classList.add('badge-pending'); span.textContent = 'pending'; break;
+      case 'paid': span.classList.add('badge-paid'); span.textContent = '已付款'; break;
+      case 'shipped': span.classList.add('badge-shipped'); span.textContent = '已出貨'; break;
+      case 'completed': span.classList.add('badge-completed'); span.textContent = '已完成'; break;
+      default: span.classList.add('badge-pending'); span.textContent = data.status || 'unknown';
     }
     return span;
   }
 
   async function loadAllOrders() {
-    ordersWrap.innerHTML = "";
-    ordersEmpty.style.display = "none";
-    globalMsg.textContent = "";
-    globalMsg.classList.remove("ok");
-
+    ordersWrap.innerHTML = '';
+    ordersEmpty.style.display = 'none';
+    globalMsg.textContent = '';
+    globalMsg.classList.remove('ok');
     try {
-      const q = query(
-        collection(db, "orders"),
-        orderBy("createdAt", "desc")
-      );
-      const snap = await getDocs(q);
-
-      if (snap.empty) {
-        ordersEmpty.style.display = "block";
-        return;
-      }
-
-      snap.forEach(docSnap => {
-        const data = docSnap.data();
-        const card = document.createElement("div");
-        card.className = "card";
-
-        const header = document.createElement("div");
-        header.className = "order-header";
-
-        const idDiv = document.createElement("div");
-        idDiv.className = "order-id";
-        idDiv.textContent = "訂單編號：" + docSnap.id;
-
+      const res = await fetch('/api/orders', { headers: getAuthHeader() });
+      if (!res.ok) { throw new Error('無法取得訂單，狀態碼 ' + res.status); }
+      const list = await res.json();
+      if (!list || list.length === 0) { ordersEmpty.style.display = 'block'; return; }
+      list.forEach(doc => {
+        const data = doc;
+        const card = document.createElement('div'); card.className = 'card';
+        const header = document.createElement('div'); header.className = 'order-header';
+        const idDiv = document.createElement('div'); idDiv.className = 'order-id'; idDiv.textContent = '訂單編號：' + (doc.id || data.id || '');
         const badge = getStatusBadge(data);
-        header.appendChild(idDiv);
-        header.appendChild(badge);
+        header.appendChild(idDiv); header.appendChild(badge);
 
-        const meta1 = document.createElement("div");
-        meta1.className = "order-meta";
-        meta1.textContent = "建立時間：" + formatDate(data.createdAt);
+        const meta1 = document.createElement('div'); meta1.className = 'order-meta'; meta1.textContent = '建立時間：' + formatDate(data.created_at || data.createdAt || data.createdAtISO);
+        const meta2 = document.createElement('div'); meta2.className = 'order-meta'; meta2.textContent = '買家：' + (data.buyerEmail || data.buyerId || data.buyer || '');
+        const meta3 = document.createElement('div'); meta3.className = 'order-meta'; meta3.textContent = '收件人：' + (data.shipName || '') + '，電話：' + (data.shipPhone || '') + '，地址：' + (data.shipAddress || '');
+        const meta4 = document.createElement('div'); meta4.className = 'order-meta'; meta4.textContent = '取消狀態：' + (data.cancelStatus || '（無）') + (data.cancelReason ? `，原因：${data.cancelReason}` : '');
 
-        const meta2 = document.createElement("div");
-        meta2.className = "order-meta";
-        meta2.textContent = "買家：" + (data.buyerEmail || data.buyerId || "");
+        const totalDiv = document.createElement('div'); totalDiv.className = 'order-total'; totalDiv.textContent = '訂單總額：NT$ ' + (data.totalAmount || data.total || 0);
 
-        const meta3 = document.createElement("div");
-        meta3.className = "order-meta";
-        meta3.textContent =
-          "收件人：" + (data.shipName || "") +
-          "，電話：" + (data.shipPhone || "") +
-          "，地址：" + (data.shipAddress || "");
-
-        const meta4 = document.createElement("div");
-        meta4.className = "order-meta";
-        meta4.textContent =
-          "取消狀態：" + (data.cancelStatus || "（無）") +
-          (data.cancelReason ? `，原因：${data.cancelReason}` : "");
-
-        const totalDiv = document.createElement("div");
-        totalDiv.className = "order-total";
-        totalDiv.textContent = "訂單總額：NT$ " + (data.totalAmount || 0);
-
-        const actions = document.createElement("div");
-        actions.className = "order-actions";
-
-        // 按鈕：管理者取消訂單
-        if (data.status !== "canceled") {
-          const btnCancel = document.createElement("button");
-          btnCancel.className = "btn-small btn-cancel";
-          btnCancel.textContent = "管理者取消訂單";
-          btnCancel.addEventListener("click", () => adminCancelOrder(docSnap.id));
-          actions.appendChild(btnCancel);
+        const actions = document.createElement('div'); actions.className = 'order-actions';
+        if (data.status !== 'canceled') {
+          const btnCancel = document.createElement('button'); btnCancel.className = 'btn-small btn-cancel'; btnCancel.textContent = '管理者取消訂單'; btnCancel.addEventListener('click', () => adminCancelOrder(doc.id || data.id)); actions.appendChild(btnCancel);
         }
+        const btnDel = document.createElement('button'); btnDel.className = 'btn-small btn-delete'; btnDel.textContent = '刪除訂單（不可復原）'; btnDel.addEventListener('click', () => adminDeleteOrder(doc.id || data.id)); actions.appendChild(btnDel);
 
-        // 按鈕：刪除訂單（不管狀態）
-        const btnDel = document.createElement("button");
-        btnDel.className = "btn-small btn-delete";
-        btnDel.textContent = "刪除訂單（不可復原）";
-        btnDel.addEventListener("click", () => adminDeleteOrder(docSnap.id));
-        actions.appendChild(btnDel);
+        const itemsDiv = document.createElement('div'); itemsDiv.className = 'items-list';
+        const items = data.items || [];
+        if (Array.isArray(items) && items.length > 0) {
+          items.forEach(it => { const line = document.createElement('div'); line.textContent = `${it.title || '商品'} x ${it.qty || it.quantity || 1}（單價 NT$ ${it.price || 0}` + (it.sellerId ? `，賣家ID: ${it.sellerId}` : '') + '）'; itemsDiv.appendChild(line); });
+        } else { itemsDiv.textContent = '（無商品明細）'; }
 
-        // 商品清單
-        const itemsDiv = document.createElement("div");
-        itemsDiv.className = "items-list";
-
-        if (Array.isArray(data.items)) {
-          data.items.forEach(it => {
-            const line = document.createElement("div");
-            line.textContent =
-              `${it.title || "商品"} x ${it.qty || 1}（單價 NT$ ${it.price || 0}` +
-              (it.sellerId ? `，賣家ID: ${it.sellerId}` : "") + "）";
-            itemsDiv.appendChild(line);
-          });
-        } else {
-          itemsDiv.textContent = "（無商品明細）";
-        }
-
-        card.appendChild(header);
-        card.appendChild(meta1);
-        card.appendChild(meta2);
-        card.appendChild(meta3);
-        card.appendChild(meta4);
-        card.appendChild(totalDiv);
-        card.appendChild(actions);
-        card.appendChild(itemsDiv);
-
+        card.appendChild(header); card.appendChild(meta1); card.appendChild(meta2); card.appendChild(meta3); card.appendChild(meta4); card.appendChild(totalDiv); card.appendChild(actions); card.appendChild(itemsDiv);
         ordersWrap.appendChild(card);
       });
-
     } catch (err) {
       console.error(err);
-      globalMsg.textContent = "讀取訂單錯誤：" + err.message;
+      globalMsg.textContent = '讀取訂單錯誤：' + (err.message || err);
     }
   }
 
-  // 管理者取消訂單（只改狀態，不刪文件）
+  // 管理者取消訂單（在後端更新狀態）
   async function adminCancelOrder(orderId) {
-    const ok = confirm("確定要將此訂單標記為『已取消』嗎？");
-    if (!ok) return;
-
+    const ok = confirm('確定要將此訂單標記為「已取消」嗎？'); if (!ok) return;
     try {
-      await updateDoc(doc(db, "orders", orderId), {
-        status: "canceled",
-        cancelStatus: "admin_canceled",
-        canceledBy: currentAdminUid,
-        canceledAt: serverTimestamp()
+      const res = await fetch('/api/orders/' + encodeURIComponent(orderId), {
+        method: 'PUT', headers: getAuthHeader(), body: JSON.stringify({ status: 'canceled', cancelStatus: 'admin_canceled', canceledBy: currentAdminUid })
       });
-      globalMsg.textContent = "已將訂單標記為已取消。";
-      globalMsg.classList.add("ok");
-      await loadAllOrders();
-    } catch (err) {
-      console.error(err);
-      globalMsg.textContent = "取消訂單失敗：" + err.message;
-      globalMsg.classList.remove("ok");
-    }
+      if (!res.ok) throw new Error('取消失敗，狀態碼 ' + res.status);
+      globalMsg.textContent = '已將訂單標記為已取消。'; globalMsg.classList.add('ok'); await loadAllOrders();
+    } catch (err) { console.error(err); globalMsg.textContent = '取消訂單失敗：' + (err.message || err); globalMsg.classList.remove('ok'); }
   }
 
-  // 管理者刪除訂單（直接刪 doc）
+  // 管理者刪除訂單（後端刪除）
   async function adminDeleteOrder(orderId) {
-    const ok = confirm(
-      "⚠ 注意：這會『直接刪除』訂單文件，無法復原。\n" +
-      "若只是要取消訂單，請用『管理者取消訂單』即可。\n\n" +
-      "仍然要刪除嗎？"
-    );
-    if (!ok) return;
-
+    const ok = confirm('⚠ 注意：這會「直接刪除」訂單，無法復原。\n若只是要取消訂單，請用「管理者取消訂單」。\n\n仍然要刪除嗎？'); if (!ok) return;
     try {
-      await deleteDoc(doc(db, "orders", orderId));
-      globalMsg.textContent = "已刪除訂單。";
-      globalMsg.classList.add("ok");
-      await loadAllOrders();
-    } catch (err) {
-      console.error(err);
-      globalMsg.textContent = "刪除訂單失敗：" + err.message;
-      globalMsg.classList.remove("ok");
-    }
+      const res = await fetch('/api/orders/' + encodeURIComponent(orderId), { method: 'DELETE', headers: getAuthHeader() });
+      if (!res.ok) throw new Error('刪除失敗，狀態碼 ' + res.status);
+      globalMsg.textContent = '已刪除訂單。'; globalMsg.classList.add('ok'); await loadAllOrders();
+    } catch (err) { console.error(err); globalMsg.textContent = '刪除訂單失敗：' + (err.message || err); globalMsg.classList.remove('ok'); }
   }
 </script>
 </body>

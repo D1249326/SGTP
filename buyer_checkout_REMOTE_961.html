@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>SGTP - 結帳</title>
+  <style>
+    body {
+      margin:0;
+      font-family: Arial, sans-serif;
+      background:#f5f5f5;
+    }
+    header {
+      background:#1f354d;
+      color:white;
+      padding:16px 24px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    }
+    header h1 { margin:0; font-size:22px; }
+    header .right button { margin-left:8px; }
+
+    .btn {
+      padding:8px 14px;
+      border:none;
+      border-radius:4px;
+      cursor:pointer;
+      font-size:14px;
+    }
+    .btn-light {
+      background:#ffffff;
+      color:#1f354d;
+    }
+    .btn-danger {
+      background:#c0392b;
+      color:white;
+    }
+    .btn-primary {
+      background:#1f354d;
+      color:white;
+    }
+
+    .container {
+      max-width:960px;
+      margin:24px auto;
+      background:white;
+      border-radius:8px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.15);
+      padding:24px;
+    }
+
+    h2 { margin-top:0; }
+
+    .section {
+      margin-top:16px;
+    }
+
+    table {
+      width:100%;
+      border-collapse:collapse;
+      font-size:14px;
+    }
+    th, td {
+      border-bottom:1px solid #eee;
+      padding:8px;
+      text-align:left;
+    }
+    th {
+      background:#f0f3f6;
+    }
+    td.price, td.qty, td.subtotal, td.center {
+      text-align:right;
+    }
+
+    .total-row td {
+      font-weight:bold;
+      border-top:2px solid #ccc;
+    }
+
+    .form-row {
+      margin:8px 0;
+    }
+    .form-row label {
+      display:inline-block;
+      width:90px;
+      color:#555;
+    }
+    .form-row input {
+      width:260px;
+      padding:6px 8px;
+      border-radius:4px;
+      border:1px solid #ccc;
+      font-size:14px;
+      box-sizing:border-box;
+    }
+    .msg {
+      margin-top:10px;
+      font-size:14px;
+      color:#c0392b;
+    }
+    .msg-ok {
+      color:#27ae60;
+    }
+    .note {
+      margin-top:6px;
+      font-size:12px;
+      color:#777;
+    }
+    .empty {
+      margin-top:10px;
+      color:#777;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>SGTP 二手商品平台 - 結帳</h1>
+  <div class="right">
+    <button class="btn btn-light" onclick="location.href='buyer_cart.html'">← 回購物車</button>
+    <button class="btn btn-light" onclick="location.href='buyer_shop.html'">逛逛其他商品</button>
+    <button id="btnLogout" class="btn btn-danger">登出</button>
+  </div>
+</header>
+
+<div class="container">
+  <h2>訂單確認</h2>
+
+  <!-- 購物車項目 -->
+  <div class="section">
+    <h3>購物車內容</h3>
+    <div id="cartEmpty" class="empty" style="display:none;">
+      購物車目前是空的，請先回購物車頁面或商品列表選購商品。
+    </div>
+    <div id="cartTableWrap" style="overflow-x:auto; display:none;">
+      <table>
+        <thead>
+          <tr>
+            <th>商品名稱</th>
+            <th class="price">單價 (NT$)</th>
+            <th class="qty">數量</th>
+            <th class="subtotal">小計 (NT$)</th>
+          </tr>
+        </thead>
+        <tbody id="cartBody"></tbody>
+        <tfoot>
+          <tr class="total-row">
+            <td colspan="3" style="text-align:right;">總金額</td>
+            <td class="subtotal" id="totalAmount">0</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- 收件資訊 -->
+  <div class="section">
+    <h3>收件資訊</h3>
+    <div class="form-row">
+      <label for="shipName">收件人姓名</label>
+      <input id="shipName" type="text" />
+    </div>
+    <div class="form-row">
+      <label for="shipPhone">聯絡電話</label>
+      <input id="shipPhone" type="text" />
+    </div>
+    <div class="form-row">
+      <label for="shipAddress">收件地址</label>
+      <input id="shipAddress" type="text" style="width:360px;" />
+    </div>
+    <div class="note">
+      <!-- 可放一些出貨說明 -->
+    </div>
+  </div>
+
+  <!-- 送出訂單 -->
+  <div class="section">
+    <button id="btnSubmitOrder" class="btn btn-primary">送出訂單</button>
+    <div id="msg" class="msg"></div>
+  </div>
+
+</div>
+
+<script>
+  const btnLogout      = document.getElementById('btnLogout');
+  const cartEmptyEl    = document.getElementById('cartEmpty');
+  const cartTableWrap  = document.getElementById('cartTableWrap');
+  const cartBody       = document.getElementById('cartBody');
+  const totalAmountEl  = document.getElementById('totalAmount');
+
+  const shipNameInput  = document.getElementById('shipName');
+  const shipPhoneInput = document.getElementById('shipPhone');
+  const shipAddrInput  = document.getElementById('shipAddress');
+
+  const btnSubmitOrder = document.getElementById('btnSubmitOrder');
+  const msgEl          = document.getElementById('msg');
+
+  let currentUser = null;
+  let cartItems = [];
+
+  function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{ 'Authorization':'Bearer '+t, 'Content-Type':'application/json' } : { 'Content-Type':'application/json' }; }
+
+  // 登出
+  btnLogout.addEventListener('click', ()=>{ localStorage.removeItem('token'); alert('已登出'); window.location.href = 'buyer_login.html'; });
+
+  (async function init(){
+    try{
+      // 確認登入
+      const me = await fetch('/api/auth/me', { headers: getAuthHeader() });
+      if (!me.ok) { alert('請先登入買家帳號'); window.location.href='buyer_login.html'; return; }
+      currentUser = await me.json();
+      if (!currentUser || currentUser.role !== 'buyer') { alert('此帳號無結帳權限'); localStorage.removeItem('token'); window.location.href='buyer_login.html'; return; }
+      // 預設收件資訊從 token payload (如有) 填入
+      shipNameInput.value = currentUser.name || '';
+      // TODO: phone/address could be stored in users table and returned by /api/auth/me if desired
+
+      await loadCartItems();
+    }catch(err){ console.error(err); alert('讀取使用者資料失敗：'+(err.message||err)); window.location.href='buyer_login.html'; }
+  })();
+
+  // 讀取購物車 items 後端
+  async function loadCartItems(){
+    cartItems = [];
+    cartBody.innerHTML = '';
+    totalAmountEl.textContent = '0';
+    cartEmptyEl.style.display = 'none'; cartTableWrap.style.display = 'none';
+    try{
+      const res = await fetch('/api/cart', { headers: getAuthHeader() });
+      if (!res.ok) { cartEmptyEl.style.display='block'; cartEmptyEl.textContent='載入購物車失敗'; return; }
+      const rows = await res.json();
+      if (!rows || rows.length===0) { cartEmptyEl.style.display='block'; return; }
+      let total = 0;
+      rows.forEach(r => {
+        const item = { id: r.productId, title: r.title || '未命名商品', price: +r.price || 0, qty: +r.qty || 1, image: r.image || '', sellerId: r.sellerId || null };
+        cartItems.push(item);
+        const tr = document.createElement('tr'); const sub = item.price * item.qty; total += sub;
+        tr.innerHTML = `<td>${item.title}</td><td class="price">${item.price}</td><td class="qty">${item.qty}</td><td class="subtotal">${sub}</td>`;
+        cartBody.appendChild(tr);
+      });
+      totalAmountEl.textContent = total;
+      cartTableWrap.style.display = 'block';
+    }catch(err){ console.error(err); cartEmptyEl.style.display='block'; cartEmptyEl.textContent='載入購物車時發生錯誤：'+(err.message||err); }
+  }
+
+  // 送出訂單 -> 呼叫 POST /api/orders
+  btnSubmitOrder.addEventListener('click', async () => {
+    msgEl.textContent = ''; msgEl.classList.remove('msg-ok');
+    if (!currentUser) { alert('尚未確認登入狀態，請重新登入'); return; }
+    if (!cartItems.length) { msgEl.textContent='購物車目前是空的，無法建立訂單。'; return; }
+    const shipName = shipNameInput.value.trim(); const shipPhone = shipPhoneInput.value.trim(); const shipAddr = shipAddrInput.value.trim();
+    if (!shipName || !shipPhone || !shipAddr) { msgEl.textContent='請完整填寫收件人姓名、電話與地址。'; return; }
+    let total = 0; const sellerIdSet = new Set();
+    const orderItems = cartItems.map(it => { const sub = it.price * it.qty; total += sub; if (it.sellerId) sellerIdSet.add(it.sellerId); return { productId: it.id, title: it.title, price: it.price, qty: it.qty, image: it.image, sellerId: it.sellerId || null }; });
+    try{
+      btnSubmitOrder.disabled = true; btnSubmitOrder.textContent = '訂單建立中...';
+      const payload = { items: orderItems, totalAmount: total, shipName, shipPhone, shipAddress: shipAddr };
+      const res = await fetch('/api/orders', { method: 'POST', headers: getAuthHeader(), body: JSON.stringify(payload) });
+      if (!res.ok) { const err = await res.json().catch(()=>null); throw new Error(err && err.error ? err.error : '建立訂單失敗'); }
+      // 清空後端購物車
+      await fetch('/api/cart/clear', { method: 'DELETE', headers: getAuthHeader() });
+      msgEl.classList.add('msg-ok'); msgEl.textContent = '訂單建立成功！感謝您的購買。';
+      setTimeout(()=> window.location.href='buyer_orders.html', 1500);
+    }catch(err){ console.error(err); msgEl.textContent = '建立訂單失敗：' + (err.message || err); }
+    finally { btnSubmitOrder.disabled = false; btnSubmitOrder.textContent = '送出訂單'; }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>SGTP 後台管理 - 商品管理</title>
+  <style>
+    :root{
+      --base-bg: #f4f7fb;
+      --panel-bg: #ffffff;
+      --brand: #1f354d;
+      --brand-600: #26374b;
+      --danger: #c0392b;
+      --muted: #6b7280;
+      --radius: 8px;
+      --max-width: 1100px;
+      --gap: 16px;
+    }
+
+    *{box-sizing:border-box}
+    body{font-family:Inter, 'Segoe UI', Roboto, Arial, sans-serif;background:var(--base-bg);margin:0;color:#111}
+    header{background:linear-gradient(90deg,var(--brand-600),var(--brand));color:#fff;padding:18px 24px;font-size:20px;font-weight:600}
+    .admin-nav{background:var(--panel-bg);padding:10px 24px;display:flex;gap:10px;align-items:center;border-bottom:1px solid #e6edf3}
+    .admin-nav a{color:var(--muted);text-decoration:none;padding:8px 12px;border-radius:6px;font-weight:600}
+    .admin-nav a.active{background:var(--brand);color:#fff}
+    .container{padding:24px;max-width:var(--max-width);margin:20px auto}
+
+    .panel{background:var(--panel-bg);border-radius:var(--radius);padding:16px;box-shadow:0 6px 18px rgba(31,53,77,0.06)}
+
+    .toolbar{display:flex;gap:12px;margin-bottom:16px;align-items:center}
+    .btn{padding:8px 12px;border-radius:8px;border:none;background:var(--brand);color:#fff;cursor:pointer;font-weight:600}
+    .btn[disabled]{opacity:.6;cursor:not-allowed}
+    .btn-danger{background:var(--danger)}
+
+    table{width:100%;border-collapse:collapse;background:transparent}
+    th,td{padding:12px 10px;border-bottom:1px solid #f0f4f8;text-align:left}
+    th{background:transparent;color:var(--muted);font-size:13px;font-weight:700}
+    tbody tr:hover{background:#fbfdff}
+
+    .small{font-size:13px;color:var(--muted)}
+    input,textarea,select{padding:8px;border:1px solid #e2e8f0;border-radius:8px;background:#fff}
+    .form-row{display:flex;gap:12px;margin-bottom:12px}
+  </style>
+</head>
+<body>
+<header>SGTP 後台管理 - 商品管理</header>
+<div class="admin-nav">
+  <a href="admin_products.html" class="active">商品管理</a>
+  <a href="admin_users.html">使用者管理</a>
+  <a href="admin_orders.html">訂單管理</a>
+</div>
+<div class="container">
+  <div class="toolbar">
+    <button id="btnReload" class="btn">重新載入</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>標題</th><th>價格</th><th>數量</th><th>建立時間</th><th>操作</th></tr>
+    </thead>
+    <tbody id="productsTable"></tbody>
+  </table>
+</div>
+
+<script>
+  const btnReload = document.getElementById('btnReload');
+  const productsTable = document.getElementById('productsTable');
+
+  function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{Authorization:'Bearer '+t}:{}};
+
+  async function loadProducts(){
+    // use admin endpoint to get seller info
+    const res = await fetch('/api/admin/products', { headers: Object.assign({'Content-Type':'application/json'}, getAuthHeader()) });
+    if (!res.ok) { const err = await res.json(); alert('無法載入商品：' + (err.error||res.status)); return; }
+    const data = await res.json();
+    productsTable.innerHTML = '';
+    data.forEach(p => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${p.title}</td><td>${p.price}</td><td>${p.quantity}</td><td>${p.seller_name || p.seller_email || '-'}</td><td>${p.created_at}</td><td><button class='btn btn-danger btn-del' data-id='${p.id}'>刪除</button></td>`;
+      productsTable.appendChild(tr);
+    });
+  }
+
+  // load sellers into dropdown
+  async function loadSellers(){
+    const res = await fetch('/api/admin/users?role=seller', { headers: Object.assign({'Content-Type':'application/json'}, getAuthHeader()) });
+    if (!res.ok) return;
+    const list = await res.json();
+    const sel = document.getElementById('p_seller');
+    sel.innerHTML = '<option value="">(未指定賣家)</option>';
+    list.forEach(s => {
+      const opt = document.createElement('option'); opt.value = s.id; opt.textContent = s.name ? `${s.name} <${s.email}>` : s.email; sel.appendChild(opt);
+    });
+  }
+
+  btnReload.addEventListener('click', loadProducts);
+  // No create/edit UI for admin - admin can only view and delete products
+
+  productsTable.addEventListener('click', async (e)=>{
+    const t = e.target;
+    if(t.classList.contains('btn-del')){
+      const id = t.getAttribute('data-id'); if(!confirm('確定刪除?')) return;
+      const res = await fetch('/api/products/'+id, { method:'DELETE', headers: Object.assign({}, getAuthHeader()) });
+      if(!res.ok){ const err = await res.json(); alert('刪除失敗:'+ (err.error||JSON.stringify(err))); return; }
+      alert('刪除成功'); loadProducts();
+    }
+  });
+
+  // initial
+  loadProducts();
+</script>
+
+</body>
+</html>

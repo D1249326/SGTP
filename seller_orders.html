@@ -102,6 +102,7 @@
   <div id="ordersWrap"></div>
 </div>
 
+<<<<<<< HEAD
 <script type="module">
   import { auth, db } from "./firebase.js";
   import { onAuthStateChanged, signOut }
@@ -111,12 +112,18 @@
     updateDoc, doc, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
+=======
+<script>
+  // 使用後端 API 取代 Firebase
+  function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{ 'Authorization':'Bearer '+t } : {}; }
+>>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
   const ordersWrap = document.getElementById("ordersWrap");
   const ordersEmpty = document.getElementById("ordersEmpty");
   const btnLogout = document.getElementById("btnLogout");
 
   let currentSellerUid = null;
 
+<<<<<<< HEAD
   btnLogout.onclick = async () => {
     await signOut(auth);
     location.href = "seller_login.html";
@@ -136,11 +143,25 @@
     const d = ts.toDate();
     return d.toLocaleString();
   }
+=======
+  btnLogout.addEventListener('click', ()=>{ localStorage.removeItem('token'); alert('已登出'); location.href='seller_login.html'; });
 
-  function statusBadge(data) {
-    const s = document.createElement("span");
-    s.classList.add("badge");
+  (async function(){
+    try{
+      const me = await fetch('/api/auth/me', { headers: getAuthHeader() });
+      if(!me.ok){ alert('請先登入賣家帳號'); location.href='seller_login.html'; return; }
+      const user = await me.json();
+      if(!user || user.role !== 'seller'){ alert('此帳號不是賣家角色'); localStorage.removeItem('token'); location.href='seller_login.html'; return; }
+      currentSellerUid = user.id; await loadOrders();
+    }catch(err){ console.error(err); alert('讀取使用者失敗：'+(err.message||err)); location.href='seller_login.html'; }
+  })();
 
+  function formatDate(s){ if(!s) return '-'; try{ const d = new Date(s); return d.toLocaleString(); }catch(e){ return '-'; } }
+>>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
+
+  function statusBadge(data){ const s = document.createElement('span'); s.classList.add('badge'); if (data.cancelStatus === 'requested'){ s.classList.add('badge-cancel-req'); s.textContent='取消申請中'; return s; } if (data.status === 'canceled'){ s.classList.add('badge-canceled'); s.textContent='已取消'; return s; } switch(data.status){ case 'pending': s.classList.add('badge-pending'); s.textContent='pending'; break; case 'paid': s.classList.add('badge-paid'); s.textContent='已付款'; break; case 'shipped': s.classList.add('badge-shipped'); s.textContent='已出貨'; break; case 'completed': s.classList.add('badge-completed'); s.textContent='已完成'; break; default: s.classList.add('badge-pending'); s.textContent = data.status || 'unknown'; } return s; }
+
+<<<<<<< HEAD
     if (data.cancelStatus === "requested") {
       s.classList.add("badge-cancel-req");
       s.textContent = "取消申請中";
@@ -288,6 +309,35 @@
     });
     loadOrders();
   }
+=======
+  async function loadOrders(){
+    ordersWrap.innerHTML = ''; ordersEmpty.style.display = 'none';
+    try{
+      const res = await fetch('/api/orders?seller_id=' + encodeURIComponent(currentSellerUid), { headers: getAuthHeader() });
+      if(!res.ok){ ordersEmpty.style.display='block'; return; }
+      const rows = await res.json(); if(!rows || rows.length===0){ ordersEmpty.style.display='block'; return; }
+      rows.forEach(r => {
+        const data = r;
+        const card = document.createElement('div'); card.className='card'; const header = document.createElement('div'); header.className='order-header'; const idDiv = document.createElement('div'); idDiv.className='order-id'; idDiv.textContent = '訂單編號：' + (r.id||''); header.appendChild(idDiv); header.appendChild(statusBadge(data)); const metaHtml = `<div class="order-meta">訂單日期：${formatDate(data.created_at||data.createdAt)}</div><div class="order-meta">買家：${data.buyer_email||data.buyerEmail||''}</div><div class="order-meta">收件人：${data.shipName||data.ship_name||''}，電話：${data.shipPhone||data.ship_phone||''}，地址：${data.shipAddress||data.ship_address||''}</div><div class="order-total">訂單總額：NT$ ${data.total_amount||data.totalAmount||0}</div>`;
+        const actionsDiv = document.createElement('div'); actionsDiv.className='order-actions';
+        if(data.status !== 'canceled'){
+          const row1 = document.createElement('div'); row1.className='actions-row'; const label = document.createElement('span'); label.textContent='變更訂單狀態：'; const btnPaid = document.createElement('button'); btnPaid.className='btn-small btn-status-paid'; btnPaid.textContent='設為已付款'; btnPaid.onclick = () => updateStatus(r.id,'paid'); const btnShipped = document.createElement('button'); btnShipped.className='btn-small btn-status-shipped'; btnShipped.textContent='設為已出貨'; btnShipped.onclick = () => updateStatus(r.id,'shipped'); const btnCompleted = document.createElement('button'); btnCompleted.className='btn-small btn-status-completed'; btnCompleted.textContent='設為已完成'; btnCompleted.onclick = () => updateStatus(r.id,'completed'); row1.appendChild(label); row1.appendChild(btnPaid); row1.appendChild(btnShipped); row1.appendChild(btnCompleted); actionsDiv.appendChild(row1);
+        }
+        if(data.cancelStatus === 'requested' && data.status !== 'canceled'){
+          const row2 = document.createElement('div'); row2.className='actions-row'; const info = document.createElement('span'); info.textContent = '買家已提出取消申請' + (data.cancelReason?('（原因：'+data.cancelReason+'）'):'') + '。'; const btnOk = document.createElement('button'); btnOk.className='btn-small btn-accept'; btnOk.textContent='同意取消'; btnOk.onclick = () => approveCancel(r.id); const btnNo = document.createElement('button'); btnNo.className='btn-small btn-reject'; btnNo.textContent='拒絕取消'; btnNo.onclick = () => rejectCancel(r.id); row2.appendChild(info); row2.appendChild(btnOk); row2.appendChild(btnNo); actionsDiv.appendChild(row2);
+        } else if(data.cancelStatus === 'approved' || data.status === 'canceled'){ const row = document.createElement('div'); row.className='actions-row'; row.textContent='此訂單已取消。'; actionsDiv.appendChild(row); } else if(data.cancelStatus === 'rejected'){ const row = document.createElement('div'); row.className='actions-row'; row.textContent='已拒絕取消申請。'; actionsDiv.appendChild(row); }
+        const itemsDiv = document.createElement('div'); itemsDiv.className='items-list'; if(Array.isArray(data.items)){ data.items.filter(it => !it.sellerId || it.sellerId === currentSellerUid).forEach(it => { const line = document.createElement('div'); line.textContent = `${it.title||'商品'} x ${it.qty||1}（NT$ ${it.price||0}）`; itemsDiv.appendChild(line); }); } else { itemsDiv.textContent='（無商品明細）'; }
+        card.appendChild(header); card.insertAdjacentHTML('beforeend', metaHtml); card.appendChild(actionsDiv); card.appendChild(itemsDiv); ordersWrap.appendChild(card);
+      });
+    }catch(err){ console.error(err); ordersEmpty.style.display='block'; }
+  }
+
+  async function updateStatus(orderId, newStatus){ const labelMap = { paid:'已付款', shipped:'已出貨', completed:'已完成' }; const ok = confirm(`確定要將此訂單狀態改為「${labelMap[newStatus]||newStatus}」嗎？`); if(!ok) return; try{ const res = await fetch('/api/orders/'+encodeURIComponent(orderId), { method:'PUT', headers: Object.assign({ 'Content-Type':'application/json' }, getAuthHeader()), body: JSON.stringify({ status: newStatus }) }); if(!res.ok) { const e = await res.json().catch(()=>null); throw new Error(e&&e.error?e.error:('Status '+res.status)); } alert(`已將訂單狀態更新為「${labelMap[newStatus]||newStatus}」。`); await loadOrders(); }catch(err){ console.error(err); alert('更新訂單狀態失敗：'+(err.message||err)); } }
+
+  async function approveCancel(id){ if(!confirm('確定要同意取消這筆訂單嗎？\n此操作會將訂單狀態設為「已取消」。')) return; try{ const res = await fetch('/api/orders/'+encodeURIComponent(id), { method:'PUT', headers: Object.assign({ 'Content-Type':'application/json' }, getAuthHeader()), body: JSON.stringify({ status:'canceled', cancelStatus:'approved' }) }); if(!res.ok){ const e = await res.json().catch(()=>null); throw new Error(e&&e.error?e.error:('Status '+res.status)); } alert('已同意取消'); await loadOrders(); }catch(err){ console.error(err); alert('同意取消失敗：'+(err.message||err)); } }
+
+  async function rejectCancel(id){ if(!confirm('確定要拒絕取消申請嗎？')) return; try{ const res = await fetch('/api/orders/'+encodeURIComponent(id), { method:'PUT', headers: Object.assign({ 'Content-Type':'application/json' }, getAuthHeader()), body: JSON.stringify({ cancelStatus:'rejected' }) }); if(!res.ok){ const e = await res.json().catch(()=>null); throw new Error(e&&e.error?e.error:('Status '+res.status)); } alert('已拒絕取消申請'); await loadOrders(); }catch(err){ console.error(err); alert('拒絕取消失敗：'+(err.message||err)); } }
+>>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
 </script>
 </body>
 </html>

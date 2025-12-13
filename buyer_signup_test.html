@@ -17,72 +17,28 @@
     <button type="submit">註冊為買家</button>
   </form>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-    import { 
-      getAuth, 
-      createUserWithEmailAndPassword, 
-      updateProfile 
-    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-    import {
-      getFirestore,
-      doc,
-      setDoc,
-      serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-
-    const firebaseConfig = {
-      apiKey:"AIzaSyAPeE8wvB5dhpe0f3UEbqPrpp8jhL7dat4",
-      authDomain:"sgtp-ed89d.firebaseapp.com",
-      projectId: "sgtp-ed89d",
-      storageBucket:"sgtp-ed89d.firebasestorage.app",
-      messagingSenderId: "381788847156",
-      appId: "1:381788847156:web:e48e67ad57015fdfd75e61",
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db   = getFirestore(app);
-
-    const form = document.getElementById("signupForm");
-
-    form.addEventListener("submit", async (e) => {
+  <script>
+    // 使用後端 API 註冊買家並自動登入
+    const form = document.getElementById('signupForm');
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-
-      const name = document.getElementById("name").value.trim();
-      const email = document.getElementById("email").value.trim();
-      const password = document.getElementById("password").value;
-      const confirmPassword = document.getElementById("confirmPassword").value;
-      const phone = document.getElementById("phone").value.trim();
-      const address = document.getElementById("address").value.trim();
-
-      if (password !== confirmPassword) {
-        alert("兩次密碼不一致");
-        return;
-      }
-
-      try {
-        // 建立 Auth 帳號
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
-
-        // 更新顯示名稱
-        await updateProfile(cred.user, { displayName: name });
-
-        // 寫入 Firestore 的 users 集合
-        await setDoc(doc(db, "users", cred.user.uid), {
-          role: "buyer",
-          name,
-          email,
-          phone,
-          address,
-          createdAt: serverTimestamp(),
-        });
-
-        alert("買家註冊成功（測試版）：" + email);
-      } catch (err) {
-        console.error("註冊或寫入 Firestore 失敗：", err);
-        alert("註冊失敗：" + err.message);
-      }
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
+      const phone = document.getElementById('phone').value.trim();
+      const address = document.getElementById('address').value.trim();
+      if(password !== confirmPassword){ alert('兩次密碼不一致'); return; }
+      try{
+        const reg = await fetch('/api/users/register', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ name, email, password, phone, address, role: 'buyer' }) });
+        if(!reg.ok){ const e = await reg.json().catch(()=>null); throw new Error(e && e.error ? e.error : ('Status '+reg.status)); }
+        // auto login
+        const login = await fetch('/api/auth/login', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ email, password }) });
+        if(!login.ok){ const e = await login.json().catch(()=>null); throw new Error(e && e.error ? e.error : ('Status '+login.status)); }
+        const body = await login.json(); if(body.token) localStorage.setItem('token', body.token);
+        alert('買家註冊成功並已登入：' + email);
+        window.location.href = 'buyer_home.html';
+      }catch(err){ console.error(err); alert('註冊失敗：'+(err.message||err)); }
     });
   </script>
 </body>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>Firebase 註冊測試</title>
+</head>
+<body>
+  <h1>Firebase 註冊測試頁</h1>
+
+  <form id="signupForm">
+    <p><label>Email：<input type="email" id="email" required></label></p>
+    <p><label>密碼：<input type="password" id="password" required></label></p>
+    <button type="submit">測試註冊</button>
+  </form>
+
+  <script>
+    // 將註冊改為呼叫後端 API /api/users/register，並自動登入
+    const form = document.getElementById('signupForm');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      try{
+        const reg = await fetch('/api/users/register', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ email, password }) });
+        if(!reg.ok){ const err = await reg.json().catch(()=>null); throw new Error(err && err.error ? err.error : ('Status '+reg.status)); }
+        // auto login
+        const login = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ email, password }) });
+        if(!login.ok){ const err = await login.json().catch(()=>null); throw new Error(err && err.error ? err.error : ('Status '+login.status)); }
+        const body = await login.json(); if(body.token) localStorage.setItem('token', body.token);
+        alert('註冊並登入成功：' + email);
+        window.location.href = 'buyer_home.html';
+      }catch(err){ console.error(err); alert('註冊失敗：'+(err.message||err)); }
+    });
+  </script>
+</body>
+</html>

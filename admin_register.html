@@ -69,51 +69,42 @@
   </div>
 </div>
 
-<script type="module">
-  import { auth, db } from "./firebase.js";
-  import {
-    createUserWithEmailAndPassword
-  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-  import {
-    setDoc,
-    doc
-  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+<script>
+  const btnRegister = document.getElementById('btnRegister');
+  const msg = document.getElementById('msg');
 
-  const btnRegister = document.getElementById("btnRegister");
-  const msg = document.getElementById("msg");
+  btnRegister.addEventListener('click', async () => {
+    msg.textContent = '';
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
 
-  btnRegister.addEventListener("click", async () => {
-    msg.textContent = "";
-
-    const name  = document.getElementById("name").value.trim();
-    const email = document.getElementById("email").value.trim();
-    const pwd   = document.getElementById("password").value.trim();
-
-    if (!name || !email || !pwd) {
-      msg.textContent = "請填寫所有欄位。";
+    if (!name || !email || !password) {
+      msg.textContent = '請填寫所有欄位。';
+      return;
+    }
+    if (password.length < 6) {
+      msg.textContent = '密碼長度至少 6 位。';
       return;
     }
 
     try {
-      const result = await createUserWithEmailAndPassword(auth, email, pwd);
-      const user = result.user;
-
-      // 將角色寫入 Firestore
-      await setDoc(doc(db, "users", user.uid), {
-        name,
-        email,
-        role: "admin",
-        createdAt: new Date()
+      const res = await fetch('http://localhost:3000/api/admin/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password })
       });
-
-      alert("管理者帳號已建立！");
-      window.location.href = "admin_login.html";
-
+      const data = await res.json();
+      if (res.ok) {
+        alert('管理者帳號已建立！');
+        window.location.href = 'admin_login.html';
+      } else {
+        msg.textContent = data.error || '註冊失敗';
+      }
     } catch (err) {
-      msg.textContent = "註冊失敗：" + err.message;
+      msg.textContent = '無法連線到伺服器：' + err.message;
     }
   });
-
 </script>
 
 </body>

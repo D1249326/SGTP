@@ -105,14 +105,49 @@
       font-size: 13px;
     }
 
-    .btn-delete:hover {
-      background: #e74c3c;
+    :root{
+      --base-bg: #f4f7fb;
+      --panel-bg: #ffffff;
+      --brand: #1f354d;
+      --brand-600: #26374b;
+      --danger: #c0392b;
+      --muted: #6b7280;
+      --radius: 8px;
+      --max-width: 1100px;
     }
+
+    *{box-sizing:border-box}
+    body{font-family:Inter, 'Segoe UI', Roboto, Arial, sans-serif;background:var(--base-bg);margin:0;color:#111}
+    header{background:linear-gradient(90deg,var(--brand-600),var(--brand));color:#fff;padding:18px 24px;font-size:22px;font-weight:600}
+    .admin-nav{background:var(--panel-bg);padding:10px 40px;display:flex;gap:10px;align-items:center;border-bottom:1px solid #e6edf3}
+    .admin-nav a{color:var(--muted);text-decoration:none;padding:8px 12px;border-radius:8px;font-weight:600}
+    .admin-nav a.active{background:var(--brand);color:#fff}
+
+    .container{padding:24px;max-width:var(--max-width);margin:20px auto}
+
+    .panel{background:var(--panel-bg);border-radius:var(--radius);padding:16px;box-shadow:0 6px 18px rgba(31,53,77,0.06)}
+
+    .toolbar{display:flex;gap:12px;margin-bottom:16px;align-items:center}
+    .btn-filter{padding:8px 12px;border-radius:8px;border:1px solid #e6eef6;background:white;color:var(--brand);cursor:pointer}
+    .btn-filter.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+
+    table{width:100%;border-collapse:collapse;background:transparent}
+    th, td{padding:12px;border-bottom:1px solid #f0f4f8;text-align:left}
+    th{background:transparent;color:var(--muted);font-size:13px;font-weight:700}
+    tr:hover{background:#fbfdff}
+
+    .btn-delete{padding:6px 10px;border-radius:8px;border:none;background:var(--danger);color:#fff;cursor:pointer}
+    .btn-block{padding:6px 10px;border-radius:8px;border:none;background:#4b5563;color:#fff;cursor:pointer}
   </style>
 </head>
 <body>
 
-<header>SGTP 後台管理 - 買家資料表（正式版）</header>
+<header>SGTP 後台管理 - 使用者管理（正式版）</header>
+<div class="admin-nav">
+  <a href="admin_products.html">商品管理</a>
+  <a href="admin_users.html" class="active">使用者管理</a>
+  <a href="admin_orders.html">訂單管理</a>
+</div>
 
 <div class="container">
   <h2>使用者列表</h2>
@@ -146,145 +181,112 @@
   </div>
 </div>
 
-<script type="module">
-  import { db } from "./firebase.js";
-  import {
-    collection,
-    getDocs,
-    deleteDoc,
-    doc
-  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-
-  const searchBox = document.getElementById("searchBox");
-  const userTable = document.getElementById("userTable");
-  const noDataBox = document.getElementById("noData");
-  const filterButtons = document.querySelectorAll(".btn-filter");
+<script>
+  const searchBox = document.getElementById('searchBox');
+  const userTable = document.getElementById('userTable');
+  const noDataBox = document.getElementById('noData');
+  const filterButtons = document.querySelectorAll('.btn-filter');
 
   let allUsers = [];
-  let currentRoleFilter = "all";
+  let currentRoleFilter = 'all';
 
-  // 1. 初始化：載入所有使用者
+  function getAuthHeader() {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: 'Bearer ' + token } : {};
+  }
+
   async function loadUsers() {
     try {
-      const snap = await getDocs(collection(db, "users"));
-      allUsers = [];
-
-      snap.forEach((docSnap) => {
-        allUsers.push({
-          id: docSnap.id,   // Firestore 文件 id (通常就是 uid)
-          ...docSnap.data()
-        });
-      });
-
+      const params = new URLSearchParams();
+      if (currentRoleFilter && currentRoleFilter !== 'all') params.set('role', currentRoleFilter);
+      const q = searchBox.value.trim(); if (q) params.set('q', q);
+      const res = await fetch('/api/admin/users?' + params.toString(), { headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()) });
+      if (res.status === 401 || res.status === 403) {
+        noDataBox.style.display = 'block';
+        noDataBox.textContent = '未授權：請先登入管理者帳號。';
+        return;
+      }
+      const data = await res.json();
+      allUsers = data || [];
       applyFilterAndRender();
     } catch (err) {
-      console.error("讀取 Firestore 失敗：", err);
-      noDataBox.style.display = "block";
-      noDataBox.textContent = "讀取資料失敗：" + err.message;
+      console.error(err);
+      noDataBox.style.display = 'block';
+      noDataBox.textContent = '讀取資料失敗：' + err.message;
     }
   }
 
-  // 2. 根據搜尋關鍵字 + 角色篩選後再渲染表格
   function applyFilterAndRender() {
     const keyword = searchBox.value.toLowerCase().trim();
-
     let filtered = allUsers;
-
-    // 角色篩選
-    if (currentRoleFilter !== "all") {
-      filtered = filtered.filter((u) => (u.role || "").toLowerCase() === currentRoleFilter);
-    }
-
-    // 關鍵字搜尋（姓名、Email）
-    if (keyword) {
-      filtered = filtered.filter((u) =>
-        (u.name || "").toLowerCase().includes(keyword) ||
-        (u.email || "").toLowerCase().includes(keyword)
-      );
-    }
-
+    if (currentRoleFilter !== 'all') filtered = filtered.filter(u => (u.role || '').toLowerCase() === currentRoleFilter);
+    if (keyword) filtered = filtered.filter(u => (u.name || '').toLowerCase().includes(keyword) || (u.email || '').toLowerCase().includes(keyword));
     renderTable(filtered);
   }
 
-  // 3. 把資料放進表格
   function renderTable(list) {
-    userTable.innerHTML = "";
-
-    if (!list.length) {
-      noDataBox.style.display = "block";
-      return;
-    }
-
-    noDataBox.style.display = "none";
-
-    list.forEach((user) => {
-      const tr = document.createElement("tr");
-
-      let createdText = "-";
-      if (user.createdAt && user.createdAt.toDate) {
-        createdText = user.createdAt.toDate().toLocaleString();
-      }
-
+    userTable.innerHTML = '';
+    if (!list.length) { noDataBox.style.display = 'block'; return; }
+    noDataBox.style.display = 'none';
+    list.forEach(user => {
+      const tr = document.createElement('tr');
+      const createdText = user.created_at || '-';
       tr.innerHTML = `
-        <td>${user.name || "-"}</td>
-        <td>${user.email || "-"}</td>
-        <td>${user.phone || "-"}</td>
-        <td>${user.address || "-"}</td>
+        <td>${user.name || '-'}</td>
+        <td>${user.email || '-'}</td>
+        <td>-</td>
+        <td>-</td>
         <td>${createdText}</td>
-        <td>${user.role || "-"}</td>
-        <td>
-          <button class="btn-delete" data-id="${user.id}">
-            刪除
-          </button>
-        </td>
+            <td>${user.role || '-'}</td>
+            <td>
+              <button class="btn-block" data-id="${user.id}" data-blocked="${user.is_blocked ? 1 : 0}">${user.is_blocked ? '解除封鎖' : '封鎖'}</button>
+              <button class="btn-delete" data-id="${user.id}">刪除</button>
+            </td>
       `;
-
       userTable.appendChild(tr);
     });
   }
 
-  // 4. 監聽搜尋框
-  searchBox.addEventListener("input", () => {
-    applyFilterAndRender();
-  });
-
-  // 5. 監聽角色篩選按鈕
-  filterButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      filterButtons.forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-
-      currentRoleFilter = btn.getAttribute("data-role");
-      applyFilterAndRender();
+  searchBox.addEventListener('input', () => { loadUsers(); });
+  filterButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentRoleFilter = btn.getAttribute('data-role');
+      loadUsers();
     });
   });
 
-  // 6. 監聽刪除按鈕（事件委派）
-  userTable.addEventListener("click", async (e) => {
+  userTable.addEventListener('click', async (e) => {
     const target = e.target;
-    if (!target.classList.contains("btn-delete")) return;
-
-    const uid = target.getAttribute("data-id");
-    const user = allUsers.find(u => u.id === uid);
-
-    const nameOrEmail = user ? (user.name || user.email || uid) : uid;
-
-    const ok = window.confirm(`確定要刪除「${nameOrEmail}」這筆使用者資料嗎？\n（將會刪除 Firestore 中的 users/${uid}，但 Authentication 仍保留）`);
-    if (!ok) return;
-
-    try {
-      await deleteDoc(doc(db, "users", uid));
-      // 從 allUsers 陣列移除
-      allUsers = allUsers.filter(u => u.id !== uid);
-      applyFilterAndRender();
-      alert("已刪除此使用者的資料（Firestore）。");
-    } catch (err) {
-      console.error(err);
-      alert("刪除失敗：" + err.message);
+    // block/unblock
+    if (target.classList.contains('btn-block')) {
+      const id = target.getAttribute('data-id');
+      const currentlyBlocked = target.getAttribute('data-blocked') === '1';
+      const action = currentlyBlocked ? '解除封鎖' : '封鎖';
+      if (!confirm(`確定要${action}此使用者嗎？`)) return;
+      try {
+        const res = await fetch('/api/admin/users/' + id, { method: 'PUT', headers: Object.assign({'Content-Type':'application/json'}, getAuthHeader()), body: JSON.stringify({ is_blocked: currentlyBlocked ? 0 : 1 }) });
+        if (!res.ok) { const err = await res.json(); alert('操作失敗：' + (err.error || JSON.stringify(err))); return; }
+        alert(action + ' 成功'); loadUsers();
+      } catch (err) { alert(action + ' 失敗：' + err.message); }
+      return;
     }
+
+    if (!target.classList.contains('btn-delete')) return;
+    const id = target.getAttribute('data-id');
+    if (!confirm('確定要刪除此使用者？')) return;
+    try {
+      const res = await fetch('/api/admin/users/' + id, { method: 'DELETE', headers: Object.assign({}, getAuthHeader()) });
+      if (!res.ok) {
+        const err = await res.json(); alert('刪除失敗：' + (err.error || JSON.stringify(err))); return;
+      }
+      alert('已刪除');
+      loadUsers();
+    } catch (err) { alert('刪除失敗：' + err.message); }
   });
 
-  // 7. 頁面載入時載入資料
+  // initial load
   loadUsers();
 </script>
 

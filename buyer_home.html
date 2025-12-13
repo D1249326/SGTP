@@ -178,221 +178,86 @@
     <p>（此頁為買家個人資料中心，可編輯基本資料。未來可加上：訂單查詢、購物車快捷入口等。）</p>
   </div>
 
-  <script type="module">
-    import { auth, db } from "./firebase.js";
-    import {
-      onAuthStateChanged,
-      signOut,
-      updateEmail,
-      reauthenticateWithCredential,
-      EmailAuthProvider
-    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-    import {
-      doc,
-      getDoc,
-      updateDoc
-    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  <script>
+    const buyerName    = document.getElementById('buyerName');
+    const buyerEmail   = document.getElementById('buyerEmail');
+    const buyerPhone   = document.getElementById('buyerPhone');
+    const buyerAddress = document.getElementById('buyerAddress');
+    const buyerRole    = document.getElementById('buyerRole');
+    const welcome      = document.getElementById('welcome');
 
-    const buyerName    = document.getElementById("buyerName");
-    const buyerEmail   = document.getElementById("buyerEmail");
-    const buyerPhone   = document.getElementById("buyerPhone");
-    const buyerAddress = document.getElementById("buyerAddress");
-    const buyerRole    = document.getElementById("buyerRole");
-    const welcome      = document.getElementById("welcome");
+    const btnLogout    = document.getElementById('btnLogout');
+    const btnEdit      = document.getElementById('btnEdit');
 
-    const btnLogout    = document.getElementById("btnLogout");
-    const btnEdit      = document.getElementById("btnEdit");
+    const displaySection = document.getElementById('displaySection');
+    const editSection    = document.getElementById('editSection');
 
-    const displaySection = document.getElementById("displaySection");
-    const editSection    = document.getElementById("editSection");
+    const editName      = document.getElementById('editName');
+    const editEmail     = document.getElementById('editEmail');
+    const editPhone     = document.getElementById('editPhone');
+    const editAddress   = document.getElementById('editAddress');
+    const editPassword  = document.getElementById('editPassword');
+    const btnSave       = document.getElementById('btnSave');
+    const btnCancel     = document.getElementById('btnCancel');
+    const msgEl         = document.getElementById('msg');
 
-    const editName      = document.getElementById("editName");
-    const editEmail     = document.getElementById("editEmail");
-    const editPhone     = document.getElementById("editPhone");
-    const editAddress   = document.getElementById("editAddress");
-    const editPassword  = document.getElementById("editPassword");
-    const btnSave       = document.getElementById("btnSave");
-    const btnCancel     = document.getElementById("btnCancel");
-    const msgEl         = document.getElementById("msg");
+    let currentUser = null;
 
-    let currentUserData = null; // Firestore 裡的使用者資料
-    let currentUserAuth = null; // Firebase Auth 的使用者
+    function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{ 'Authorization':'Bearer '+t, 'Content-Type':'application/json' } : { 'Content-Type':'application/json' }; }
 
-    // 1. 監聽登入狀態，如果沒登入就踢回登入頁
-    onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        alert("請先登入買家帳號");
-        window.location.href = "buyer_login.html";
-        return;
-      }
-
-      currentUserAuth = user;
-
-      try {
-        // 2. 從 Firestore 撈出使用者資料
-        const userDocRef = doc(db, "users", user.uid);
-        const snap = await getDoc(userDocRef);
-
-        if (!snap.exists()) {
-          alert("找不到此使用者的資料，請重新登入。");
-          await signOut(auth);
-          window.location.href = "buyer_login.html";
-          return;
-        }
-
-        const data = snap.data();
-        currentUserData = data;
-
-        if (data.role !== "buyer") {
-          alert("此帳號角色不是『買家』，無法進入買家首頁。");
-          await signOut(auth);
-          window.location.href = "buyer_login.html";
-          return;
-        }
-
-        // 3. 將資料顯示在頁面上
-        buyerName.textContent    = data.name    || "(未填)";
-        buyerEmail.textContent   = data.email   || user.email;
-        buyerPhone.textContent   = data.phone   || "(未填)";
-        buyerAddress.textContent = data.address || "(未填)";
-        buyerRole.textContent    = data.role    || "(未設定)";
-
-        welcome.textContent = "歡迎，" + (data.name || user.email) + "！";
-
-      } catch (err) {
-        console.error(err);
-        alert("讀取使用者資料失敗：" + err.message);
-      }
-    });
+    (async function(){
+      try{
+        const res = await fetch('/api/auth/me', { headers: getAuthHeader() });
+        if (!res.ok) { alert('請先登入買家帳號'); window.location.href='buyer_login.html'; return; }
+        currentUser = await res.json();
+        if (!currentUser || currentUser.role !== 'buyer') { alert('此帳號角色不是買家，請用買家帳號登入'); localStorage.removeItem('token'); window.location.href='buyer_login.html'; return; }
+        buyerName.textContent    = currentUser.name || '(未填)';
+        buyerEmail.textContent   = currentUser.email || '-';
+        buyerPhone.textContent   = currentUser.phone || '(未填)';
+        buyerAddress.textContent = currentUser.address || '(未填)';
+        buyerRole.textContent    = currentUser.role || '(未設定)';
+        welcome.textContent = '歡迎，' + (currentUser.name || currentUser.email || '買家') + '！';
+      }catch(err){ console.error(err); alert('讀取使用者資料失敗：'+(err.message||err)); window.location.href='buyer_login.html'; }
+    })();
 
     // 打開編輯模式
-    btnEdit.addEventListener("click", () => {
-      if (!currentUserData || !currentUserAuth) return;
-
-      msgEl.textContent = "";
-      msgEl.classList.remove("msg-ok");
-
-      // 用目前顯示的資料填入 input
-      editName.value    = currentUserData.name    || currentUserAuth.email || "";
-      editEmail.value   = currentUserData.email   || currentUserAuth.email || "";
-      editPhone.value   = currentUserData.phone   || "";
-      editAddress.value = currentUserData.address || "";
-      editPassword.value = "";
-
-      displaySection.style.display = "none";
-      editSection.style.display = "block";
+    btnEdit.addEventListener('click', ()=>{
+      if (!currentUser) return;
+      msgEl.textContent = ''; msgEl.classList.remove('msg-ok');
+      editName.value = currentUser.name || currentUser.email || '';
+      editEmail.value = currentUser.email || '';
+      editPhone.value = currentUser.phone || '';
+      editAddress.value = currentUser.address || '';
+      editPassword.value = '';
+      displaySection.style.display = 'none'; editSection.style.display = 'block';
     });
 
-    // 取消編輯
-    btnCancel.addEventListener("click", () => {
-      editSection.style.display = "none";
-      displaySection.style.display = "block";
-      msgEl.textContent = "";
-      msgEl.classList.remove("msg-ok");
-    });
+    btnCancel.addEventListener('click', ()=>{ editSection.style.display='none'; displaySection.style.display='block'; msgEl.textContent=''; msgEl.classList.remove('msg-ok'); });
 
-    // 儲存變更（需要先輸入目前密碼進行 re-auth）
-    btnSave.addEventListener("click", async () => {
-      msgEl.textContent = "";
-      msgEl.classList.remove("msg-ok");
-
-      if (!currentUserAuth) {
-        alert("尚未確認登入狀態，請重新登入。");
-        return;
-      }
-
-      const newName    = editName.value.trim();
-      const newEmail   = editEmail.value.trim();
-      const newPhone   = editPhone.value.trim();
-      const newAddress = editAddress.value.trim();
-      const password   = editPassword.value;
-
-      if (!newName || !newEmail) {
-        msgEl.textContent = "姓名與 Email 不可空白。";
-        return;
-      }
-      if (!password) {
-        msgEl.textContent = "請輸入目前密碼以驗證身分。";
-        return;
-      }
-
-      try {
-        btnSave.disabled = true;
-        btnSave.textContent = "儲存中...";
-
-        const currentEmail = currentUserAuth.email;
-        // 1️⃣ 使用目前 email + 密碼 重新驗證
-        const credential = EmailAuthProvider.credential(currentEmail, password);
-        await reauthenticateWithCredential(currentUserAuth, credential);
-
-        // 2️⃣ 如果 Email 有改，更新 Auth 上的 email
-        if (newEmail !== currentEmail) {
-          await updateEmail(currentUserAuth, newEmail);
+    btnSave.addEventListener('click', async ()=>{
+      msgEl.textContent = ''; msgEl.classList.remove('msg-ok');
+      if (!currentUser) { alert('尚未確認登入狀態，請重新登入。'); return; }
+      const newName = editName.value.trim(); const newEmail = editEmail.value.trim(); const newPhone = editPhone.value.trim(); const newAddress = editAddress.value.trim(); const password = editPassword.value;
+      if (!newName || !newEmail) { msgEl.textContent = '姓名與 Email 不可空白。'; return; }
+      try{
+        btnSave.disabled = true; btnSave.textContent = '儲存中...';
+        const payload = { name: newName, email: newEmail, phone: newPhone, address: newAddress };
+        if (newEmail !== currentUser.email) {
+          // require current password
+          if (!password) { msgEl.textContent = '更改 Email 需要輸入目前密碼以驗證身分。'; btnSave.disabled=false; btnSave.textContent='儲存變更'; return; }
+          payload.currentPassword = password;
         }
-
-        // 3️⃣ 更新 Firestore 裡的使用者資料
-        const userDocRef = doc(db, "users", currentUserAuth.uid);
-        await updateDoc(userDocRef, {
-          name: newName,
-          email: newEmail,
-          phone: newPhone,
-          address: newAddress
-        });
-
-        // 更新目前記憶的資料與畫面
-        currentUserData = {
-          ...currentUserData,
-          name: newName,
-          email: newEmail,
-          phone: newPhone,
-          address: newAddress
-        };
-
-        buyerName.textContent    = newName || "(未填)";
-        buyerEmail.textContent   = newEmail;
-        buyerPhone.textContent   = newPhone || "(未填)";
-        buyerAddress.textContent = newAddress || "(未填)";
-        welcome.textContent      = "歡迎，" + (newName || newEmail) + "！";
-
-        msgEl.classList.add("msg-ok");
-        msgEl.textContent = "資料已成功更新！";
-
-        // 關閉編輯區，回到顯示區
-        setTimeout(() => {
-          editSection.style.display = "none";
-          displaySection.style.display = "block";
-          msgEl.textContent = "";
-          msgEl.classList.remove("msg-ok");
-        }, 1000);
-
-      } catch (err) {
-        console.error(err);
-        if (err.code === "auth/wrong-password") {
-          msgEl.textContent = "密碼錯誤，請再試一次。";
-        } else if (err.code === "auth/too-many-requests") {
-          msgEl.textContent = "嘗試次數過多，請稍後再試。";
-        } else if (err.code === "auth/email-already-in-use") {
-          msgEl.textContent = "此 Email 已被其他帳號使用。";
-        } else {
-          msgEl.textContent = "更新失敗：" + err.message;
-        }
-      } finally {
-        btnSave.disabled = false;
-        btnSave.textContent = "儲存變更";
-      }
+        const res = await fetch('/api/users/me', { method: 'PUT', headers: getAuthHeader(), body: JSON.stringify(payload) });
+        if (!res.ok) { const err = await res.json().catch(()=>null); throw new Error(err && err.error ? err.error : ('Status ' + res.status)); }
+        const updated = await res.json(); currentUser = updated;
+        buyerName.textContent = updated.name || '(未填)'; buyerEmail.textContent = updated.email; buyerPhone.textContent = updated.phone || '(未填)'; buyerAddress.textContent = updated.address || '(未填)'; welcome.textContent = '歡迎，' + (updated.name || updated.email) + '！';
+        msgEl.classList.add('msg-ok'); msgEl.textContent = '資料已成功更新！';
+        setTimeout(()=>{ editSection.style.display='none'; displaySection.style.display='block'; msgEl.textContent=''; msgEl.classList.remove('msg-ok'); }, 1000);
+      }catch(err){ console.error(err); msgEl.textContent = '更新失敗：' + (err.message||err); } finally { btnSave.disabled=false; btnSave.textContent='儲存變更'; }
     });
 
-    // 4. 登出功能
-    btnLogout.addEventListener("click", async () => {
-      try {
-        await signOut(auth);
-        alert("已登出");
-        window.location.href = "buyer_login.html";
-      } catch (err) {
-        console.error(err);
-        alert("登出失敗：" + err.message);
-      }
-    });
+    // 登出
+    btnLogout.addEventListener('click', ()=>{ localStorage.removeItem('token'); alert('已登出'); window.location.href='buyer_login.html'; });
   </script>
 </body>
 </html>

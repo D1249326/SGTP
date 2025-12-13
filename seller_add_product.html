@@ -96,17 +96,7 @@ https://example.com/photo2.jpg"></textarea>
   </div>
 </div>
 
-<script type="module">
-  import { auth, db } from "./firebase.js";
-  import {
-    onAuthStateChanged,
-    signOut
-  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-  import {
-    addDoc, collection, serverTimestamp,
-    doc, getDoc
-  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-
+  <script>
   const $ = id => document.getElementById(id);
   const userNameSpan = $("userName");
   const btnLogout = $("btnLogout");
@@ -116,41 +106,29 @@ https://example.com/photo2.jpg"></textarea>
 
   let currentSellerId = null;
 
-  // --- 確認登入者為 seller ---
-  onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-      alert("請先登入賣家帳號");
-      window.location.href = "seller_login.html";
-      return;
-    }
+  function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{ 'Authorization':'Bearer '+t } : {}; }
 
-    try {
-      const snap = await getDoc(doc(db, "users", user.uid));
-      if (!snap.exists()) {
-        alert("找不到使用者資料，請重新登入");
-        await signOut(auth);
-        window.location.href = "seller_login.html";
-        return;
-      }
-
-      const data = snap.data();
-      if (data.role !== "seller") {
-        alert("此帳號不是賣家角色");
-        await signOut(auth);
-        window.location.href = "seller_login.html";
-        return;
-      }
-
-      currentSellerId = user.uid;
-      userNameSpan.textContent = data.name || data.email || "賣家";
+  // 確認登入者為 seller
+  (async function(){
+    try{
+      const res = await fetch('/api/auth/me', { headers: getAuthHeader() });
+      if (!res.ok) { alert('請先登入賣家帳號'); window.location.href='seller_login.html'; return; }
+      const user = await res.json();
+      if (!user || user.role !== 'seller') { alert('此帳號不是賣家角色'); localStorage.removeItem('token'); window.location.href='seller_login.html'; return; }
+      currentSellerId = user.id;
+      userNameSpan.textContent = user.name || user.email || '賣家';
     } catch (err) {
       console.error(err);
-      alert("讀取使用者資料失敗：" + err.message);
-      window.location.href = "seller_login.html";
+      alert('讀取使用者資料失敗：' + err.message);
+      window.location.href = 'seller_login.html';
     }
-  });
+  })();
 
+<<<<<<< HEAD
   // --- 上架商品（分類 + 多張 imageUrls） ---
+=======
+  // 上架商品
+>>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
   btnAdd.addEventListener("click", async () => {
     msgEl.textContent = "";
     okEl.textContent = "";
@@ -188,11 +166,10 @@ https://example.com/photo2.jpg"></textarea>
       return;
     }
 
-    // 解析多張圖片：用換行或逗號分隔
     let images = [];
     if (imageUrlsRaw.trim() !== "") {
       images = imageUrlsRaw
-        .split(/\r?\n|,/)
+        .split(/\r?\n|,/) 
         .map(s => s.trim())
         .filter(s => s.length > 0);
     }
@@ -201,6 +178,7 @@ https://example.com/photo2.jpg"></textarea>
       btnAdd.disabled = true;
       btnAdd.textContent = "上架中...";
 
+<<<<<<< HEAD
       const productsRef = collection(db, "products");
       const docRef = await addDoc(productsRef, {
         title,
@@ -212,11 +190,18 @@ https://example.com/photo2.jpg"></textarea>
         desc,
         sellerId: currentSellerId,
         createdAt: serverTimestamp()
+=======
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: Object.assign({'Content-Type':'application/json'}, getAuthHeader()),
+        body: JSON.stringify({ title, description: desc, price, quantity: stock, seller_id: currentSellerId })
+>>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || JSON.stringify(data));
 
-      okEl.textContent = "上架成功！商品ID：" + docRef.id;
+      okEl.textContent = "上架成功！商品ID：" + data.id;
 
-      // 清空輸入
       $("title").value = "";
       $("category").value = "";
       $("price").value = "";
@@ -232,15 +217,10 @@ https://example.com/photo2.jpg"></textarea>
     }
   });
 
-  // --- 登出 ---
+  // 登出
   btnLogout.addEventListener("click", async () => {
-    try {
-      await signOut(auth);
-      window.location.href = "seller_login.html";
-    } catch (err) {
-      console.error(err);
-      alert("登出失敗：" + err.message);
-    }
+    localStorage.removeItem('token');
+    window.location.href = 'seller_login.html';
   });
 </script>
 

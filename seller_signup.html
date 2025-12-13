@@ -65,15 +65,7 @@
     </div>
   </div>
 
-  <script type="module">
-    import { auth, db } from "./firebase.js";
-    import {
-      createUserWithEmailAndPassword
-    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-    import {
-      doc, setDoc, serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-
+  <script>
     const $ = (id) => document.getElementById(id);
     const btn = $("btnSignup");
     const errorMsg = $("errorMsg");
@@ -101,26 +93,23 @@
         btn.disabled = true;
         btn.textContent = "註冊中...";
 
-        const userCred = await createUserWithEmailAndPassword(auth, email, pw);
-        const uid = userCred.user.uid;
-
-        await setDoc(doc(db, "users", uid), {
-          name,
-          email,
-          phone,
-          address,
-          role: "seller",
-          createdAt: serverTimestamp()
+        const res = await fetch('/api/users/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password: pw, role: 'seller', phone, address })
         });
-
-        alert("賣家註冊成功！");
-        window.location.href = "seller_home.html";
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || JSON.stringify(data));
+        }
+        alert('賣家註冊成功！請以帳號登入。');
+        window.location.href = 'seller_login.html';
       } catch (err) {
         console.error(err);
-        errorMsg.textContent = "註冊失敗：" + err.message;
+        errorMsg.textContent = '註冊失敗：' + err.message;
       } finally {
         btn.disabled = false;
-        btn.textContent = "註冊賣家帳號";
+        btn.textContent = '註冊賣家帳號';
       }
     });
   </script>

@@ -57,16 +57,7 @@
 
   </div>
 
-  <script type="module">
-    import { auth, db } from "./firebase.js";
-    import {
-      signInWithEmailAndPassword,
-      signOut
-    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-    import {
-      doc, getDoc
-    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-
+  <script>
     const $ = (id) => document.getElementById(id);
     const btn = $("btnLogin");
     const errorMsg = $("errorMsg");
@@ -86,30 +77,23 @@
         btn.disabled = true;
         btn.textContent = "登入中...";
 
-        const cred = await signInWithEmailAndPassword(auth, email, pw);
-        const uid = cred.user.uid;
-
-        // 確認此帳號是 seller
-        const userRef = doc(db, "users", uid);
-        const snap = await getDoc(userRef);
-        if (!snap.exists()) {
-          await signOut(auth);
-          throw new Error("找不到使用者資料。");
-        }
-        const data = snap.data();
-        if (data.role !== "seller") {
-          await signOut(auth);
-          throw new Error("此帳號不是賣家角色，請改用買家/管理員登入。");
-        }
-
-        alert("賣家登入成功！");
-        window.location.href = "seller_home.html";
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: pw })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || JSON.stringify(data));
+        if (data.user.role !== 'seller') throw new Error('此帳號不是賣家角色，請改用買家/管理員登入。');
+        localStorage.setItem('token', data.token);
+        alert('賣家登入成功！');
+        window.location.href = 'seller_home.html';
       } catch (err) {
         console.error(err);
-        errorMsg.textContent = "登入失敗：" + err.message;
+        errorMsg.textContent = '登入失敗：' + err.message;
       } finally {
         btn.disabled = false;
-        btn.textContent = "登入";
+        btn.textContent = '登入';
       }
     });
   </script>

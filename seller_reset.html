@@ -54,12 +54,8 @@
     </div>
   </div>
 
-  <script type="module">
-    import { auth } from "./firebase.js";
-    import {
-      sendPasswordResetEmail
-    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-
+  <script>
+    // 暫時移除 Firebase 密碼重設的實作，顯示說明文字。
     const btnReset = document.getElementById("btnReset");
     const infoMsg  = document.getElementById("infoMsg");
     const errorMsg = document.getElementById("errorMsg");
@@ -74,21 +70,10 @@
         return;
       }
 
-      try {
-        btnReset.disabled = true;
-        btnReset.textContent = "寄送中...";
-
-        await sendPasswordResetEmail(auth, email);
-
-        infoMsg.textContent =
-          "已成功寄出密碼重置信件，請至 Email 收信。如未收到請查看垃圾信件匣。";
-      } catch (err) {
-        console.error(err);
-        errorMsg.textContent = "寄送失敗：" + err.message;
-      } finally {
-        btnReset.disabled = false;
-        btnReset.textContent = "寄送重設密碼連結";
-      }
+      // 提示尚未實作後端寄信功能
+      infoMsg.textContent = "此功能尚未啟用 — 請聯絡管理員協助重設密碼。";
+      // 可選：開啟 mailto 讓管理員收到通知
+      // window.location.href = `mailto:admin@example.com?subject=重設密碼請求&body=請協助重設 ${encodeURIComponent(email)}`;
     });
   </script>
 

@@ -1,22 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="UTF-8" />
-  <title>SGTP - 賣家首頁</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f7f7f7; }
-    header {
-      background:#1f354d; color:white; padding:18px 32px;
-      font-size:22px; display:flex; justify-content:space-between; align-items:center;
-    }
-    .user-info { font-size:14px; }
-    .btn {
-      padding:6px 12px; border-radius:4px; border:none;
-      cursor:pointer; font-size:14px; margin-left:8px;
-    }
-    .btn-light { background:#ffffff; color:#1f354d; }
-    .btn-danger { background:#c0392b; color:white; }
+  <script>
+    const userNameSpan = document.getElementById('userName');
+    const btnLogout = document.getElementById('btnLogout');
 
+<<<<<<< HEAD
     .container {
       max-width:1100px; margin:30px auto; background:white;
       padding:24px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.15);
@@ -134,6 +121,14 @@
     </div>
   </div>
 </div>
+=======
+    const prodEmptyEl = document.getElementById('prodEmpty');
+    const prodListEl  = document.getElementById('prodList');
+    const prodRowsEl  = document.getElementById('prodRows');
+    const prodNoteEl  = document.getElementById('prodNote');
+
+    const FALLBACK_IMG = 'https://via.placeholder.com/80x80?text=No+Image';
+>>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
 
 <script type="module">
   import { auth, db } from "./firebase.js";
@@ -143,6 +138,7 @@
     doc, getDoc, collection, query, where, getDocs, orderBy
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
+<<<<<<< HEAD
   const userNameSpan = document.getElementById("userName");
   const prodEmptyEl = document.getElementById("prodEmpty");
   const prodListEl  = document.getElementById("prodList");
@@ -157,6 +153,46 @@
     if (!user) {
       location.href = "seller_login.html";
       return;
+=======
+    function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{ 'Authorization':'Bearer '+t } : {}; }
+
+    (async function(){
+      try{
+        const res = await fetch('/api/auth/me', { headers: getAuthHeader() });
+        if(!res.ok){ alert('請先登入賣家帳號'); window.location.href='seller_login.html'; return; }
+        const user = await res.json();
+        if(!user || user.role !== 'seller'){ alert('此帳號不是賣家角色'); localStorage.removeItem('token'); window.location.href='seller_login.html'; return; }
+        userNameSpan.textContent = user.name || user.email || '賣家'; currentSellerUid = user.id; loadMyProducts();
+      }catch(err){ console.error(err); alert('讀取使用者資料失敗：'+err.message); window.location.href='seller_login.html'; }
+    })();
+
+    btnLogout.addEventListener('click', ()=>{ localStorage.removeItem('token'); window.location.href='seller_login.html'; });
+
+    async function loadMyProducts(){
+      if(!currentSellerUid) return; prodRowsEl.innerHTML=''; prodEmptyEl.style.display='none'; prodListEl.style.display='none'; prodNoteEl.style.display='none';
+      try{
+        const res = await fetch('/api/products?seller_id=' + encodeURIComponent(currentSellerUid), { headers: getAuthHeader() });
+        if(!res.ok) { alert('載入商品失敗'); return; }
+        const rows = await res.json();
+        if(!rows || rows.length===0){ prodEmptyEl.style.display='block'; return; }
+        rows.forEach(data => {
+          const title = data.title || '(無標題)';
+          const image = (data.images && data.images[0]) || FALLBACK_IMG;
+          const price = data.price || 0;
+          const stock = data.quantity || data.stock || 0;
+          const createdText = data.created_at ? new Date(data.created_at).toLocaleString() : '';
+
+          const row = document.createElement('div'); row.className='prod-row';
+          const colImg = document.createElement('div'); colImg.className='prod-col-img'; const imgEl = document.createElement('img'); imgEl.className='prod-img'; imgEl.src = image; imgEl.alt = title; imgEl.onerror = ()=>{ imgEl.src = FALLBACK_IMG }; colImg.appendChild(imgEl);
+          const colTitle = document.createElement('div'); colTitle.className='prod-col-title'; colTitle.textContent = title;
+          const colPrice = document.createElement('div'); colPrice.className='prod-col-price'; colPrice.textContent = 'NT$ ' + price;
+          const colStock = document.createElement('div'); colStock.className='prod-col-stock'; colStock.textContent = stock;
+          const colTime = document.createElement('div'); colTime.className='prod-col-time'; colTime.textContent = createdText;
+          const colActions = document.createElement('div'); colActions.className='prod-col-actions'; const editBtn = document.createElement('button'); editBtn.className='btn-mini'; editBtn.textContent='編輯'; editBtn.addEventListener('click', ()=>{ window.location.href = `seller_edit_product.html?pid=${encodeURIComponent(data.id)}` }); colActions.appendChild(editBtn);
+          row.appendChild(colImg); row.appendChild(colTitle); row.appendChild(colPrice); row.appendChild(colStock); row.appendChild(colTime); row.appendChild(colActions); prodRowsEl.appendChild(row);
+        }); prodListEl.style.display='block'; prodNoteEl.style.display='block';
+      }catch(err){ console.error(err); alert('載入商品列表失敗：' + err.message); }
+>>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
     }
     const snap = await getDoc(doc(db, "users", user.uid));
     const data = snap.data();

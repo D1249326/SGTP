@@ -94,53 +94,22 @@
 
 
 
-  <script type="module">
-    import { auth, db } from "./firebase.js";
-    import {
-      signInWithEmailAndPassword,
-      signOut
-    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-    import {
-      doc,
-      getDoc
-    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-
-    const form = document.getElementById("loginForm");
-
-    form.addEventListener("submit", async (e) => {
+  <script>
+    const form = document.getElementById('loginForm');
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-
-      const email = document.getElementById("email").value.trim();
-      const password = document.getElementById("password").value;
-
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
       try {
-        // 1. 用 Email/密碼登入
-        const cred = await signInWithEmailAndPassword(auth, email, password);
-
-        // 2. 從 Firestore 取出該使用者資料，確認是否為 buyer
-        const userDocRef = doc(db, "users", cred.user.uid);
-        const userSnap = await getDoc(userDocRef);
-
-        if (!userSnap.exists()) {
-          alert("此帳號在資料庫中找不到對應資料。");
-          await signOut(auth);
-          return;
-        }
-
-        const data = userSnap.data();
-        if (data.role !== "buyer") {
-          alert("此帳號不是『買家』角色，無法從買家入口登入。");
-          await signOut(auth);
-          return;
-        }
-
-        alert("登入成功，歡迎 " + (data.name || email) + "！");
-        // 3. 導向買家首頁
-        window.location.href = "buyer_shop.html";
-      } catch (err) {
-        console.error(err);
-        alert("登入失敗：" + err.message);
-      }
+        const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ email, password }) });
+        if (!res.ok) { const err = await res.json().catch(()=>null); throw new Error(err && err.error ? err.error : ('Status ' + res.status)); }
+        const data = await res.json();
+        // expect { token, user }
+        localStorage.setItem('token', data.token);
+        if (!data.user || data.user.role !== 'buyer') { localStorage.removeItem('token'); alert('此帳號不是買家，請使用買家帳號登入'); return; }
+        alert('登入成功，歡迎 ' + (data.user.name || email) + '！');
+        window.location.href = 'buyer_shop.html';
+      } catch (err) { console.error(err); alert('登入失敗：' + (err.message || err)); }
     });
   </script>
 </body>
