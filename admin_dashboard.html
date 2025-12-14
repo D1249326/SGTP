@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>SGTP - 管理儀表板</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+<header>SGTP 後台管理 - 儀表板</header>
+<div class="admin-nav">
+  <a href="admin_dashboard.html" class="active">儀表板</a>
+  <a href="admin_products.html">商品管理</a>
+  <a href="admin_users.html">使用者管理</a>
+  <a href="admin_orders.html">訂單管理</a>
+  <a href="admin_logs.html">操作日誌</a>
+</div>
+
+<div class="container">
+  <div class="panel">
+    <h2>總覽</h2>
+    <div class="form-row">
+      <div class="card" style="flex:1;text-align:center;padding:20px">
+        <div style="font-size:28px;" id="usersCount">-</div>
+        <div style="color:var(--muted)">使用者數</div>
+      </div>
+      <div class="card" style="flex:1;text-align:center;padding:20px">
+        <div style="font-size:28px;" id="productsCount">-</div>
+        <div style="color:var(--muted)">商品數</div>
+      </div>
+      <div class="card" style="flex:1;text-align:center;padding:20px">
+        <div style="font-size:28px;" id="ordersCount">-</div>
+        <div style="color:var(--muted)">訂單數</div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="card" style="flex:1;text-align:center;padding:20px">
+        <div style="font-size:22px;" id="totalSales">-</div>
+        <div style="color:var(--muted)">總營業額</div>
+      </div>
+      <div class="card" style="flex:1;text-align:center;padding:20px">
+        <div style="font-size:22px;" id="pendingOrders">-</div>
+        <div style="color:var(--muted)">待處理訂單</div>
+      </div>
+      <div class="card" style="flex:1;text-align:center;padding:20px">
+        <div style="font-size:22px;" id="blockedUsers">-</div>
+        <div style="color:var(--muted)">已封鎖使用者</div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;text-align:right">
+      <button id="btnReload" class="btn btn-light">重新整理</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{Authorization:'Bearer '+t}:{}};
+  const btnReload = document.getElementById('btnReload');
+
+  async function loadDashboard(){
+    try{
+      const res = await fetch('/api/admin/dashboard', { headers: Object.assign({'Content-Type':'application/json'}, getAuthHeader()) });
+      if (!res.ok) { const err = await res.json(); alert('無法取得儀表板：' + (err.error||res.status)); return; }
+      const d = await res.json();
+      document.getElementById('usersCount').textContent = d.users_count;
+      document.getElementById('productsCount').textContent = d.products_count;
+      document.getElementById('ordersCount').textContent = d.orders_count;
+      document.getElementById('totalSales').textContent = 'NT$ ' + (d.total_sales || 0);
+      document.getElementById('pendingOrders').textContent = d.pending_orders;
+      document.getElementById('blockedUsers').textContent = d.blocked_users;
+    }catch(e){ console.error(e); alert('載入失敗：'+e.message); }
+  }
+
+  btnReload.addEventListener('click', loadDashboard);
+  loadDashboard();
+</script>
+</body>
+</html>

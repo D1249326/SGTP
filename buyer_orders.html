@@ -130,100 +130,10 @@
     目前沒有任何訂單。
   </div>
   <div id="ordersWrap"></div>
+  <div id="globalMsg" style="display:none;color:#c0392b;margin-top:6px;"></div>
 </div>
 
-<<<<<<< HEAD
-<script type="module">
-  import { auth, db } from "./firebase.js";
-  import { onAuthStateChanged, signOut }
-    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-  import {
-    collection, query, where, getDocs
-  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-  const ordersWrap = document.getElementById("ordersWrap");
-  const ordersEmpty = document.getElementById("ordersEmpty");
-  const btnLogout = document.getElementById("btnLogout");
-
-  btnLogout.onclick = async () => {
-    await signOut(auth);
-    location.href = "buyer_login.html";
-  };
-
-  onAuthStateChanged(auth, async user => {
-    if (!user) {
-      location.href = "buyer_login.html";
-      return;
-    }
-    loadOrders(user.uid);
-  });
-
-  async function loadOrders(uid) {
-    ordersWrap.innerHTML = "";
-    ordersEmpty.style.display = "none";
-
-    const q = query(
-      collection(db, "orders"),
-      where("buyerId", "==", uid)
-    );
-
-    const snap = await getDocs(q);
-
-    if (snap.empty) {
-      ordersEmpty.style.display = "block";
-      return;
-    }
-
-    snap.forEach(d => {
-      const o = d.data();
-
-      const card = document.createElement("div");
-      card.className = "card";
-
-      const header = document.createElement("div");
-      header.className = "order-header";
-
-      const id = document.createElement("div");
-      id.className = "order-id";
-      id.textContent = "訂單編號：" + d.id;
-
-      const badge = document.createElement("span");
-      badge.className = "badge badge-" + (o.status || "pending");
-      badge.textContent = o.status || "pending";
-
-      header.append(id, badge);
-
-      const time = document.createElement("div");
-      time.className = "order-meta";
-      time.textContent = "訂單時間：" + (o.createdAt?.toDate?.().toLocaleString() || "-");
-
-      const total = document.createElement("div");
-      total.className = "order-total";
-      total.textContent = "訂單總額：NT$ " + (o.totalAmount || 0);
-
-      const toggle = document.createElement("div");
-      toggle.className = "items-toggle";
-      toggle.textContent = "查看商品明細 ＋";
-
-      const items = document.createElement("div");
-      items.className = "items-list";
-
-      (o.items || []).forEach(it => {
-        const line = document.createElement("div");
-        line.textContent = `${it.title} x ${it.qty}（NT$ ${it.price}）`;
-        items.appendChild(line);
-      });
-
-      toggle.onclick = () => {
-        const open = items.style.display === "block";
-        items.style.display = open ? "none" : "block";
-        toggle.textContent = open ? "查看商品明細 ＋" : "收合商品明細 －";
-      };
-
-      card.append(header, time, total, toggle, items);
-      ordersWrap.appendChild(card);
-    });
-=======
 <script>
   const btnLogout   = document.getElementById('btnLogout');
   const ordersEmpty = document.getElementById('ordersEmpty');
@@ -312,7 +222,6 @@
       if (!res.ok) { const e = await res.json().catch(()=>null); throw new Error(e && e.error ? e.error : ('Status ' + res.status)); }
       alert('已送出取消申請！'); await loadOrders();
     }catch(err){ console.error(err); alert('送出取消申請失敗：' + (err.message||err)); }
->>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
   }
 </script>
 </body>

@@ -3,52 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <title>SGTP - 管理者登入</title>
-  <style>
-    body {
-      margin:0;
-      background:#f5f5f5;
-      font-family: Arial, sans-serif;
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      height:100vh;
-    }
-    .card {
-      width:360px;
-      background:white;
-      padding:24px;
-      border-radius:10px;
-      box-shadow:0 2px 10px rgba(0,0,0,0.15);
-    }
-    h2 { margin-top:0; text-align:center; }
-    label { display:block; margin-top:12px; }
-    input {
-      width:100%;
-      padding:8px;
-      margin-top:4px;
-      border-radius:4px;
-      border:1px solid #ccc;
-      font-size:14px;
-    }
-    .btn {
-      width:100%;
-      padding:10px;
-      margin-top:16px;
-      border:none;
-      border-radius:6px;
-      font-size:16px;
-      cursor:pointer;
-      background:#1f354d;
-      color:white;
-    }
-    .msg { margin-top:12px; font-size:14px; color:#c0392b; }
-    .link { margin-top:10px; text-align:center; font-size:14px; }
-    .link a { color:#1f354d; text-decoration:none; }
-  </style>
+  <link rel="stylesheet" href="admin.css">
 </head>
 <body>
 
-<div class="card">
+<div class="admin-auth-wrap">
+  <div class="card-auth">
   <h2>管理者登入</h2>
 
   <label>Email</label>
@@ -62,6 +22,7 @@
 
   <div class="link">
     <a href="admin_register.html">還沒有帳號？建立管理者帳號</a>
+  </div>
   </div>
 </div>
 

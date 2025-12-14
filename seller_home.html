@@ -1,49 +1,32 @@
 <!DOCTYPE html>
-  <script>
-    const userNameSpan = document.getElementById('userName');
-    const btnLogout = document.getElementById('btnLogout');
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>SGTP - 賣家後台</title>
+  <style>
+    body { margin:0; font-family: Arial, sans-serif; background:#f5f5f5; }
+    header { background:#1f354d; color:white; padding:16px 24px; display:flex; justify-content:space-between; align-items:center; }
+    header div { font-weight:bold; }
+    .user-info { display:flex; gap:8px; align-items:center; }
+    .btn { padding:8px 14px; border:none; border-radius:4px; cursor:pointer; font-size:14px; }
+    .btn-light { background:#ffffff; color:#1f354d; }
+    .btn-danger { background:#c0392b; color:white; }
 
-<<<<<<< HEAD
-    .container {
-      max-width:1100px; margin:30px auto; background:white;
-      padding:24px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.15);
-    }
+    .container { max-width:960px; margin:24px auto; padding:24px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.15); background:white; }
     h2 { margin-top:0; }
     .info { margin-top:10px; font-size:14px; color:#555; }
 
     .card-list { margin-top:20px; }
-    .link-btn {
-      display:inline-block; margin-right:12px; margin-bottom:12px;
-      padding:10px 16px; background:#1f354d; color:white;
-      border-radius:4px; text-decoration:none; font-size:14px;
-    }
+    .link-btn { display:inline-block; margin-right:12px; margin-bottom:12px; padding:10px 16px; background:#1f354d; color:white; border-radius:4px; text-decoration:none; font-size:14px; }
     .link-btn:hover { background:#28486a; }
 
     /* ===== 商品列表 ===== */
-    .section-title {
-      margin-top:24px;
-      font-size:18px;
-      font-weight:bold;
-    }
+    .section-title { margin-top:24px; font-size:18px; font-weight:bold; }
     .prod-list { margin-top:12px; }
 
-    .prod-list-header,
-    .prod-row {
-      display:flex;
-      align-items:center;
-      font-size:14px;
-    }
-
-    .prod-list-header {
-      font-weight:bold;
-      border-bottom:1px solid #ddd;
-      padding-bottom:6px;
-    }
-
-    .prod-row {
-      padding:8px 0;
-      border-bottom:1px solid #f0f0f0;
-    }
+    .prod-list-header, .prod-row { display:flex; align-items:center; font-size:14px; }
+    .prod-list-header { font-weight:bold; border-bottom:1px solid #ddd; padding-bottom:6px; }
+    .prod-row { padding:8px 0; border-bottom:1px solid #f0f0f0; }
 
     .prod-col-img     { width:80px; }
     .prod-col-title   { flex:2; padding-right:8px; }
@@ -53,24 +36,10 @@
     .prod-col-time    { width:160px; font-size:12px; color:#777; text-align:right; }
     .prod-col-actions { width:90px; text-align:center; }
 
-    .btn-mini {
-      padding:4px 8px;
-      font-size:12px;
-      border-radius:4px;
-      border:none;
-      background:#1f354d;
-      color:white;
-      cursor:pointer;
-    }
+    .btn-mini { padding:4px 8px; font-size:12px; border-radius:4px; border:none; background:#1f354d; color:white; cursor:pointer; }
     .btn-mini:hover { background:#28486a; }
 
-    .prod-img {
-      width:64px; height:64px;
-      object-fit:cover;
-      border-radius:4px;
-      background:#eee;
-    }
-
+    .prod-img { width:64px; height:64px; object-fit:cover; border-radius:4px; background:#eee; }
     .empty { margin-top:10px; color:#777; font-size:14px; }
     .small-note { margin-top:4px; font-size:12px; color:#999; }
   </style>
@@ -121,39 +90,18 @@
     </div>
   </div>
 </div>
-=======
-    const prodEmptyEl = document.getElementById('prodEmpty');
+<script>
+  const userNameSpan = document.getElementById('userName');
+  const btnLogout = document.getElementById('btnLogout');
+  let currentSellerUid = null;
+
+  const prodEmptyEl = document.getElementById('prodEmpty');
     const prodListEl  = document.getElementById('prodList');
     const prodRowsEl  = document.getElementById('prodRows');
     const prodNoteEl  = document.getElementById('prodNote');
 
     const FALLBACK_IMG = 'https://via.placeholder.com/80x80?text=No+Image';
->>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
 
-<script type="module">
-  import { auth, db } from "./firebase.js";
-  import { onAuthStateChanged, signOut } from
-    "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-  import {
-    doc, getDoc, collection, query, where, getDocs, orderBy
-  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-
-<<<<<<< HEAD
-  const userNameSpan = document.getElementById("userName");
-  const prodEmptyEl = document.getElementById("prodEmpty");
-  const prodListEl  = document.getElementById("prodList");
-  const prodRowsEl  = document.getElementById("prodRows");
-  const prodNoteEl  = document.getElementById("prodNote");
-  const btnLogout   = document.getElementById("btnLogout");
-
-  const FALLBACK_IMG = "https://via.placeholder.com/80x80?text=No+Image";
-  let currentSellerUid = null;
-
-  onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-      location.href = "seller_login.html";
-      return;
-=======
     function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{ 'Authorization':'Bearer '+t } : {}; }
 
     (async function(){
@@ -192,70 +140,8 @@
           row.appendChild(colImg); row.appendChild(colTitle); row.appendChild(colPrice); row.appendChild(colStock); row.appendChild(colTime); row.appendChild(colActions); prodRowsEl.appendChild(row);
         }); prodListEl.style.display='block'; prodNoteEl.style.display='block';
       }catch(err){ console.error(err); alert('載入商品列表失敗：' + err.message); }
->>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
     }
-    const snap = await getDoc(doc(db, "users", user.uid));
-    const data = snap.data();
-    if (data.role !== "seller") {
-      await signOut(auth);
-      location.href = "seller_login.html";
-      return;
-    }
-    userNameSpan.textContent = data.name || data.email || "賣家";
-    currentSellerUid = user.uid;
-    loadMyProducts();
-  });
-
-  btnLogout.onclick = async () => {
-    await signOut(auth);
-    location.href = "seller_login.html";
-  };
-
-  async function loadMyProducts() {
-    const q = query(
-      collection(db, "products"),
-      where("sellerId", "==", currentSellerUid),
-      orderBy("createdAt", "desc")
-    );
-
-    const snap = await getDocs(q);
-    prodRowsEl.innerHTML = "";
-
-    if (snap.empty) {
-      prodEmptyEl.style.display = "block";
-      return;
-    }
-
-    snap.forEach(d => {
-      const p = d.data();
-
-      const row = document.createElement("div");
-      row.className = "prod-row";
-
-      row.innerHTML = `
-        <div class="prod-col-img">
-          <img class="prod-img" src="${p.image || FALLBACK_IMG}">
-        </div>
-        <div class="prod-col-title">${p.title || "未命名商品"}</div>
-        <div class="prod-col-cat">${p.category || "未分類"}</div>
-        <div class="prod-col-price">NT$ ${p.price || 0}</div>
-        <div class="prod-col-stock">${p.stock || 0}</div>
-        <div class="prod-col-time">
-          ${p.createdAt?.toDate ? p.createdAt.toDate().toLocaleString() : ""}
-        </div>
-        <div class="prod-col-actions">
-          <button class="btn-mini"
-            onclick="location.href='seller_edit_product.html?pid=${d.id}'">
-            編輯
-          </button>
-        </div>
-      `;
-      prodRowsEl.appendChild(row);
-    });
-
-    prodListEl.style.display = "block";
-    prodNoteEl.style.display = "block";
-  }
 </script>
+
 </body>
 </html>

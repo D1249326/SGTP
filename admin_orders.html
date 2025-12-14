@@ -3,158 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>SGTP - 後台訂單管理</title>
-  <style>
-    body {
-      margin:0;
-      font-family: Arial, sans-serif;
-      background:#f5f5f5;
-    }
-    header {
-      background:#1f354d;
-      color:white;
-      padding:16px 24px;
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-    }
-    :root{
-      --base-bg: #f4f7fb;
-      --panel-bg: #ffffff;
-      --brand: #1f354d;
-      --brand-600: #26374b;
-      --danger: #c0392b;
-      --muted: #6b7280;
-      --radius: 8px;
-      --max-width: 1100px;
-    }
-
-    *{box-sizing:border-box}
-    body{font-family:Inter, 'Segoe UI', Roboto, Arial, sans-serif;background:var(--base-bg);margin:0;color:#111}
-    header{background:linear-gradient(90deg,var(--brand-600),var(--brand));color:#fff;padding:18px 24px;display:flex;justify-content:space-between;align-items:center}
-    .admin-nav{background:var(--panel-bg);padding:10px 24px;display:flex;gap:10px;align-items:center;border-bottom:1px solid #e6edf3}
-    .admin-nav a{color:var(--muted);text-decoration:none;padding:8px 12px;border-radius:8px;font-weight:600}
-    .admin-nav a.active{background:var(--brand);color:#fff}
-
-    .container{max-width:var(--max-width);margin:24px auto;padding:0 16px}
-    .panel{background:var(--panel-bg);border-radius:var(--radius);padding:16px;box-shadow:0 6px 18px rgba(31,53,77,0.06)}
-
-    .btn{padding:8px 12px;border-radius:8px;border:none;background:var(--brand);color:#fff;cursor:pointer}
-    .btn-light{background:#ffffff;color:var(--brand);border:1px solid #e6edf3}
-    .btn-danger{background:var(--danger)}
-    .btn-small{padding:6px 10px;border-radius:8px}
-
-    .card{border-radius:var(--radius);padding:12px;margin-bottom:16px;background:var(--panel-bg);box-shadow:0 4px 12px rgba(31,53,77,0.04)}
-    .empty{color:var(--muted);}
-    .order-meta{font-size:13px;color:var(--muted);margin-bottom:6px}
-    header h1 { margin:0; font-size:22px; }
-    header .right button { margin-left:8px; }
-
-    .btn {
-      padding:6px 12px;
-      border:none;
-      border-radius:4px;
-      font-size:14px;
-      cursor:pointer;
-    }
-    .btn-light { background:#ffffff; color:#1f354d; }
-    .btn-danger { background:#c0392b; color:#fff; }
-    .btn-primary { background:#1f354d; color:#fff; }
-    .btn-small {
-      padding:4px 8px;
-      font-size:12px;
-      border-radius:4px;
-      border:none;
-      cursor:pointer;
-    }
-    .btn-cancel { background:#e67e22; color:white; }
-    .btn-delete { background:#c0392b; color:white; }
-
-    .container {
-      max-width:1200px;
-      margin:24px auto;
-      padding:0 16px;
-    }
-
-    .top-card {
-      background:white;
-      border-radius:8px;
-      box-shadow:0 2px 8px rgba(0,0,0,0.1);
-      padding:16px 20px;
-      margin-bottom:16px;
-    }
-
-    .card {
-      background:white;
-      border-radius:8px;
-      box-shadow:0 2px 8px rgba(0,0,0,0.1);
-      padding:16px 20px;
-      margin-bottom:16px;
-    }
-    .empty {
-      margin-top:16px;
-      color:#777;
-    }
-
-    .order-header {
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      margin-bottom:6px;
-    }
-    .order-id {
-      font-weight:bold;
-      font-size:15px;
-    }
-
-    .badge {
-      display:inline-block;
-      padding:2px 8px;
-      border-radius:10px;
-      font-size:12px;
-      color:white;
-    }
-    .badge-pending   { background:#e67e22; }
-    .badge-paid      { background:#2980b9; }
-    .badge-shipped   { background:#16a085; }
-    .badge-completed { background:#2ecc71; }
-    .badge-canceled  { background:#7f8c8d; }
-    .badge-cancel-req{ background:#f39c12; }
-    .badge-cancel-rej{ background:#c0392b; }
-
-    .order-meta {
-      font-size:13px;
-      color:#555;
-      margin-bottom:4px;
-    }
-    .order-total {
-      font-weight:bold;
-      margin-top:4px;
-    }
-    .order-actions {
-      margin-top:6px;
-      display:flex;
-      flex-wrap:wrap;
-      gap:6px;
-    }
-    .items-list {
-      margin-top:8px;
-      font-size:13px;
-      border-top:1px solid #eee;
-      padding-top:6px;
-    }
-    .note {
-      font-size:13px;
-      color:#777;
-    }
-    .global-msg {
-      margin-top:8px;
-      font-size:14px;
-      color:#c0392b;
-    }
-    .global-msg.ok {
-      color:#27ae60;
-    }
-  </style>
+  <link rel="stylesheet" href="admin.css">
 </head>
 <body>
 <header>
@@ -166,9 +15,11 @@
 </header>
 
 <div class="admin-nav" style="margin:0 0 8px 0;">
+  <a href="admin_dashboard.html">儀表板</a>
   <a href="admin_products.html">商品管理</a>
   <a href="admin_users.html">使用者管理</a>
   <a href="admin_orders.html" class="active">訂單管理</a>
+  <a href="admin_logs.html">操作日誌</a>
 </div>
 
 <div class="container">

@@ -89,6 +89,17 @@ function userAuth(req, res, next) {
   }
 }
 
+// Helper: record admin actions for audit trail (non-blocking)
+function logAdminAction(adminId, action, targetType = null, targetId = null, details = null) {
+  try {
+    db.run('INSERT INTO admin_logs (admin_id, action, target_type, target_id, details) VALUES (?, ?, ?, ?, ?)', [adminId, action, targetType, targetId, details], function(err) {
+      if (err) console.error('Failed to write admin log:', err);
+    });
+  } catch (e) {
+    console.error('Error in logAdminAction:', e);
+  }
+}
+
 // Create user (general)
 app.post('/api/users/register', (req, res) => {
   const { name, email, password, role, phone, address } = req.body;
@@ -210,16 +221,25 @@ app.get('/api/admin/users', adminAuth, (req, res) => {
   sql += ' ORDER BY created_at DESC';
   db.all(sql, params, (err, rows) => {
     if (err) return res.status(500).json({ error: 'DB error' });
-    res.json(rows);
+    // parse images JSON if present
+    const out = rows.map(r => {
+      const copy = Object.assign({}, r);
+      try { copy.images = copy.images ? JSON.parse(copy.images) : null; } catch(e) { copy.images = null; }
+      return copy;
+    });
+    res.json(out);
   });
 });
 
 // Admin-only: delete user
 app.delete('/api/admin/users/:id', adminAuth, (req, res) => {
   const id = req.params.id;
+  const adminId = req.user && req.user.id;
   db.run('DELETE FROM users WHERE id = ?', [id], function(err) {
     if (err) return res.status(500).json({ error: 'DB error' });
     if (this.changes === 0) return res.status(404).json({ error: 'Not found' });
+    // record admin action
+    if (adminId) logAdminAction(adminId, 'delete_user', 'user', id, JSON.stringify({ deletedId: id }));
     res.json({ success: true });
   });
 });
@@ -228,12 +248,18 @@ app.delete('/api/admin/users/:id', adminAuth, (req, res) => {
 app.put('/api/admin/users/:id', adminAuth, (req, res) => {
   const id = req.params.id;
   const { name, email, role, is_blocked } = req.body;
+  const adminId = req.user && req.user.id;
   // allow updating is_blocked as 0/1 as well
   db.run('UPDATE users SET name = ?, email = ?, role = ?, is_blocked = COALESCE(?, is_blocked) WHERE id = ?', [name, email, role, (is_blocked != null ? (is_blocked ? 1 : 0) : null), id], function(err) {
     if (err) return res.status(500).json({ error: 'DB error' });
     if (this.changes === 0) return res.status(404).json({ error: 'Not found' });
     db.get('SELECT id, name, email, role, created_at FROM users WHERE id = ?', [id], (e, row) => {
       if (e) return res.status(500).json({ error: 'DB error' });
+      // record block/unblock
+      if (adminId && (is_blocked !== undefined && is_blocked !== null)) {
+        const act = is_blocked ? 'block_user' : 'unblock_user';
+        logAdminAction(adminId, act, 'user', id, JSON.stringify({ is_blocked: !!is_blocked }));
+      }
       res.json(row);
     });
   });
@@ -277,6 +303,44 @@ app.get('/api/admin/products', adminAuth, (req, res) => {
   sql += ' ORDER BY p.created_at DESC';
   db.all(sql, params, (err, rows) => {
     if (err) return res.status(500).json({ error: 'DB error' });
+    const out = rows.map(r => { const copy = Object.assign({}, r); try { copy.images = copy.images ? JSON.parse(copy.images) : null; } catch(e) { copy.images = null; } return copy; });
+    res.json(out);
+  });
+});
+
+// Admin dashboard: aggregated stats
+app.get('/api/admin/dashboard', adminAuth, (req, res) => {
+  const sql = `SELECT 
+    (SELECT COUNT(*) FROM users) AS users_count,
+    (SELECT COUNT(*) FROM products) AS products_count,
+    (SELECT COUNT(*) FROM orders) AS orders_count,
+    (SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE status IN ('paid','shipped','completed')) AS total_sales,
+    (SELECT COUNT(*) FROM orders WHERE status = 'pending') AS pending_orders,
+    (SELECT COUNT(*) FROM users WHERE COALESCE(is_blocked,0)=1) AS blocked_users
+  `;
+  db.get(sql, [], (err, row) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    res.json(row);
+  });
+});
+
+// Admin logs: list admin actions (supports ?q=&admin_id=&target_type=&limit=&offset=)
+app.get('/api/admin/logs', adminAuth, (req, res) => {
+  const q = req.query.q || '';
+  const adminId = req.query.admin_id;
+  const targetType = req.query.target_type;
+  const limit = parseInt(req.query.limit) || 100;
+  const offset = parseInt(req.query.offset) || 0;
+
+  let sql = `SELECT l.*, u.name AS admin_name, u.email AS admin_email FROM admin_logs l LEFT JOIN users u ON l.admin_id = u.id WHERE 1=1`;
+  const params = [];
+  if (adminId) { sql += ' AND l.admin_id = ?'; params.push(adminId); }
+  if (targetType) { sql += ' AND l.target_type = ?'; params.push(targetType); }
+  if (q) { sql += ' AND (l.action LIKE ? OR l.details LIKE ?)'; params.push('%' + q + '%', '%' + q + '%'); }
+  sql += ' ORDER BY l.created_at DESC LIMIT ? OFFSET ?'; params.push(limit, offset);
+
+  db.all(sql, params, (err, rows) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
     res.json(rows);
   });
 });
@@ -285,18 +349,24 @@ app.get('/api/products/:id', (req, res) => {
   db.get('SELECT * FROM products WHERE id = ?', [req.params.id], (err, row) => {
     if (err) return res.status(500).json({ error: 'DB error' });
     if (!row) return res.status(404).json({ error: 'Not found' });
+    try { row.images = row.images ? JSON.parse(row.images) : null; } catch(e) { row.images = null; }
     res.json(row);
   });
 });
 
 // Create product (admin)
 app.post('/api/products', adminAuth, (req, res) => {
-  const { title, description, price, quantity, seller_id } = req.body;
+  const { title, description, price, quantity, seller_id, category, image, images } = req.body;
+  const adminId = req.user && req.user.id;
   if (!title) return res.status(400).json({ error: 'Title required' });
-  db.run('INSERT INTO products (title, description, price, quantity, seller_id) VALUES (?, ?, ?, ?, ?)', [title, description || '', price || 0, quantity || 0, seller_id || null], function(err) {
+  const imagesTxt = images && Array.isArray(images) ? JSON.stringify(images) : (typeof images === 'string' ? images : null);
+  db.run('INSERT INTO products (title, description, price, quantity, seller_id, category, image, images) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [title, description || '', price || 0, quantity || 0, seller_id || null, category || null, image || null, imagesTxt], function(err) {
     if (err) return res.status(500).json({ error: 'DB error' });
     db.get('SELECT * FROM products WHERE id = ?', [this.lastID], (e, row) => {
       if (e) return res.status(500).json({ error: 'DB error' });
+      try { row.images = row.images ? JSON.parse(row.images) : null; } catch(_) { row.images = null; }
+      // record create action
+      if (adminId) logAdminAction(adminId, 'create_product', 'product', row.id, JSON.stringify({ title: row.title }));
       res.status(201).json(row);
     });
   });
@@ -305,12 +375,16 @@ app.post('/api/products', adminAuth, (req, res) => {
 // Update product (admin)
 app.put('/api/products/:id', adminAuth, (req, res) => {
   const id = req.params.id;
-  const { title, description, price, quantity } = req.body;
-  db.run('UPDATE products SET title = ?, description = ?, price = ?, quantity = ? WHERE id = ?', [title, description, price, quantity, id], function(err) {
+  const { title, description, price, quantity, category, image, images } = req.body;
+  const adminId = req.user && req.user.id;
+  const imagesTxt = images && Array.isArray(images) ? JSON.stringify(images) : (typeof images === 'string' ? images : null);
+  db.run('UPDATE products SET title = ?, description = ?, price = ?, quantity = ?, category = COALESCE(?, category), image = COALESCE(?, image), images = COALESCE(?, images) WHERE id = ?', [title, description, price, quantity, category || null, image || null, imagesTxt, id], function(err) {
     if (err) return res.status(500).json({ error: 'DB error' });
     if (this.changes === 0) return res.status(404).json({ error: 'Not found' });
     db.get('SELECT * FROM products WHERE id = ?', [id], (e, row) => {
       if (e) return res.status(500).json({ error: 'DB error' });
+      try { row.images = row.images ? JSON.parse(row.images) : null; } catch(_) { row.images = null; }
+      if (adminId) logAdminAction(adminId, 'update_product', 'product', id, JSON.stringify({ title: row.title }));
       res.json(row);
     });
   });
@@ -318,9 +392,12 @@ app.put('/api/products/:id', adminAuth, (req, res) => {
 
 // Delete product (admin)
 app.delete('/api/products/:id', adminAuth, (req, res) => {
-  db.run('DELETE FROM products WHERE id = ?', [req.params.id], function(err) {
+  const id = req.params.id;
+  const adminId = req.user && req.user.id;
+  db.run('DELETE FROM products WHERE id = ?', [id], function(err) {
     if (err) return res.status(500).json({ error: 'DB error' });
     if (this.changes === 0) return res.status(404).json({ error: 'Not found' });
+    if (adminId) logAdminAction(adminId, 'delete_product', 'product', id, JSON.stringify({ deletedId: id }));
     res.json({ success: true });
   });
 });
@@ -401,6 +478,7 @@ app.get('/api/orders/:id', userAuth, (req, res) => {
 app.put('/api/orders/:id', adminAuth, (req, res) => {
   const id = req.params.id;
   const { status, cancelStatus, cancelReason, canceledBy } = req.body;
+  const adminId = req.user && req.user.id;
 
   // When marking canceled, set canceled_at to now
   const sql = `UPDATE orders SET status = ?, cancel_status = ?, cancel_reason = ?, canceled_by = ?, canceled_at = CASE WHEN (? = 'canceled' OR ? = 'admin_canceled') THEN datetime('now') ELSE canceled_at END WHERE id = ?`;
@@ -411,6 +489,10 @@ app.put('/api/orders/:id', adminAuth, (req, res) => {
     db.get('SELECT * FROM orders WHERE id = ?', [id], (e, row) => {
       if (e) return res.status(500).json({ error: 'DB error' });
       try { row.items = row.items ? JSON.parse(row.items) : []; } catch (_) { row.items = []; }
+      // record cancel action if relevant
+      if (adminId && (status === 'canceled' || cancelStatus === 'admin_canceled')) {
+        logAdminAction(adminId, 'cancel_order', 'order', id, JSON.stringify({ cancelStatus, cancelReason, canceledBy }));
+      }
       res.json(row);
     });
   });
@@ -418,9 +500,12 @@ app.put('/api/orders/:id', adminAuth, (req, res) => {
 
 // Delete order (admin)
 app.delete('/api/orders/:id', adminAuth, (req, res) => {
-  db.run('DELETE FROM orders WHERE id = ?', [req.params.id], function(err) {
+  const id = req.params.id;
+  const adminId = req.user && req.user.id;
+  db.run('DELETE FROM orders WHERE id = ?', [id], function(err) {
     if (err) return res.status(500).json({ error: 'DB error' });
     if (this.changes === 0) return res.status(404).json({ error: 'Not found' });
+    if (adminId) logAdminAction(adminId, 'delete_order', 'order', id, JSON.stringify({ deletedId: id }));
     res.json({ success: true });
   });
 });

@@ -124,11 +124,7 @@ https://example.com/photo2.jpg"></textarea>
     }
   })();
 
-<<<<<<< HEAD
-  // --- 上架商品（分類 + 多張 imageUrls） ---
-=======
-  // 上架商品
->>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
+  // 上架商品（分類 + 多張 imageUrls）
   btnAdd.addEventListener("click", async () => {
     msgEl.textContent = "";
     okEl.textContent = "";
@@ -178,24 +174,21 @@ https://example.com/photo2.jpg"></textarea>
       btnAdd.disabled = true;
       btnAdd.textContent = "上架中...";
 
-<<<<<<< HEAD
-      const productsRef = collection(db, "products");
-      const docRef = await addDoc(productsRef, {
+      const payload = {
         title,
-        category,                // ⭐ 新增分類
+        category: category || null,
+        description: desc,
         price,
-        stock,
-        image: images[0] || "",  // ⭐ 封面圖（相容舊頁）
-        images,                  // ⭐ 多圖
-        desc,
-        sellerId: currentSellerId,
-        createdAt: serverTimestamp()
-=======
+        quantity: stock,
+        seller_id: currentSellerId,
+        image: images[0] || null,
+        images: images.length ? images : null
+      };
+
       const res = await fetch('/api/products', {
         method: 'POST',
         headers: Object.assign({'Content-Type':'application/json'}, getAuthHeader()),
-        body: JSON.stringify({ title, description: desc, price, quantity: stock, seller_id: currentSellerId })
->>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || JSON.stringify(data));

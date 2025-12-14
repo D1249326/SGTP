@@ -12,14 +12,7 @@
     .btn-danger { background:#c0392b; color:white; }
     .container { max-width:600px; margin:30px auto; background:white; padding:24px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.15); }
     label { display:block; margin-top:12px; font-size:14px; }
-<<<<<<< HEAD
-    input, textarea, select {
-      width:100%; padding:8px; margin-top:4px; box-sizing:border-box;
-      border-radius:4px; border:1px solid #ccc; font-family:inherit;
-    }
-=======
-    input, textarea { width:100%; padding:8px; margin-top:4px; box-sizing:border-box; border-radius:4px; border:1px solid #ccc; font-family:inherit; }
->>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
+    input, textarea, select { width:100%; padding:8px; margin-top:4px; box-sizing:border-box; border-radius:4px; border:1px solid #ccc; font-family:inherit; }
     textarea { min-height:90px; resize:vertical; }
     .main-btn { margin-top:18px; width:100%; padding:10px; background:#1f354d; color:white; border:none; border-radius:4px; font-size:16px; cursor:pointer; }
     .sub-btn { margin-top:10px; width:100%; padding:10px; border:none; border-radius:4px; font-size:14px; cursor:pointer; }
@@ -27,61 +20,14 @@
     .msg-ok    { margin-top:10px; color:#27ae60; font-size:14px; }
     .back-link { margin-top:12px; font-size:14px; }
     .back-link a { color:#1f354d; text-decoration:none; }
-<<<<<<< HEAD
-
     /* 圖片預覽區 */
-    .img-preview-wrap {
-      margin-top:8px;
-      padding:8px;
-      background:#fafafa;
-      border:1px solid #eee;
-      border-radius:4px;
-    }
-    .img-preview-label {
-      font-size:12px;
-      color:#777;
-      margin-bottom:6px;
-    }
-    .thumb-list {
-      display:flex;
-      flex-wrap:wrap;
-      gap:8px;
-    }
-    .thumb-item {
-      width:80px;
-      height:80px;
-      border-radius:4px;
-      overflow:hidden;
-      background:#eee;
-      position:relative;
-      font-size:11px;
-      color:#333;
-    }
-    .thumb-item img {
-      width:100%;
-      height:100%;
-      object-fit:cover;
-      display:block;
-    }
-    .thumb-badge {
-      position:absolute;
-      left:2px;
-      top:2px;
-      background:rgba(0,0,0,0.6);
-      color:white;
-      padding:1px 4px;
-      border-radius:3px;
-      font-size:10px;
-    }
-    .thumb-empty {
-      font-size:12px;
-      color:#999;
-    }
-=======
-    .img-preview-wrap { margin-top:8px; padding:8px; background:#fafafa; border:1px solid #eee; border-radius:4px; text-align:center; }
-    .img-preview-wrap img { max-width:100%; max-height:200px; object-fit:contain; }
-    .img-preview-label { font-size:12px; color:#777; margin-bottom:4px; }
->>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
+    .img-preview-wrap { margin-top:8px; padding:8px; background:#fafafa; border:1px solid #eee; border-radius:4px; }
+    .img-preview-label { font-size:12px; color:#777; margin-bottom:6px; }
+    .thumb-list { display:flex; flex-wrap:wrap; gap:8px; }
+    .thumb-item { width:80px; height:80px; border-radius:4px; overflow:hidden; background:#eee; position:relative; font-size:11px; color:#333; }
+    .thumb-item img { width:100%; height:100%; object-fit:cover; display:block; }
+    .thumb-badge { position:absolute; left:2px; top:2px; background:rgba(0,0,0,0.6); color:white; padding:1px 4px; border-radius:3px; font-size:10px; }
+    .thumb-empty { font-size:12px; color:#999; }
   </style>
 </head>
 <body>
@@ -125,29 +71,17 @@
     <label>商品描述（可選）</label>
     <textarea id="prodDesc"></textarea>
 
-<<<<<<< HEAD
     <!-- ⭐ 多張圖片輸入：每行一張網址 -->
     <label>商品圖片網址（可多張，一行一張）</label>
-    <textarea
-      id="prodImages"
-      placeholder="例：&#10;https://example.com/pic1.jpg&#10;https://example.com/pic2.jpg"
-    ></textarea>
-
+    <textarea id="prodImages" placeholder="例：\nhttps://example.com/pic1.jpg\nhttps://example.com/pic2.jpg"></textarea>
     <!-- 多張圖片預覽 -->
-=======
-    <label>商品圖片網址（可選）</label>
-    <input id="prodImageUrl" type="text" placeholder="請貼上圖片 URL，例如 https://..." />
->>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
     <div class="img-preview-wrap">
       <div class="img-preview-label">圖片預覽（第 1 張會作為封面顯示）：</div>
       <div id="imgPreviewList" class="thumb-list"></div>
     </div>
 
     <button id="btnSave" class="main-btn">儲存變更</button>
-<<<<<<< HEAD
-    <!-- 刪除商品 -->
-=======
->>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
+
     <button id="btnDelete" class="sub-btn btn-danger">刪除商品（無法復原）</button>
 
     <div id="msgError" class="msg-error"></div>
@@ -170,46 +104,19 @@
   const notFoundEl = $('notFound');
   const formArea = $('formArea');
 
+  // form elements
   const titleBar = $('titleBar');
   const titleInput = $('prodTitle');
+  const categorySelect = $('prodCategory');
   const priceInput = $('prodPrice');
   const stockInput = $('prodStock');
   const descInput = $('prodDesc');
-  const imageInput = $('prodImageUrl');
-  const imgPreview = $('imgPreview');
-
-<<<<<<< HEAD
-  const titleBar   = $("titleBar");
-  const titleInput = $("prodTitle");
-
-  // ⭐ 新增：分類欄位元素
-  const categorySelect = $("prodCategory");
-
-  const priceInput = $("prodPrice");
-  const stockInput = $("prodStock");
-  const descInput  = $("prodDesc");
-
-  // ⭐ 多圖相關元素
-  const imagesInput   = $("prodImages");
-  const imgPreviewList = $("imgPreviewList");
-
-  const btnSave    = $("btnSave");
-  const btnDelete  = $("btnDelete");
-
-  const msgErrorEl = $("msgError");
-  const msgOkEl    = $("msgOk");
-
-  const FALLBACK_IMG = "https://via.placeholder.com/400x300?text=No+Image";
-
-  // URL pid
-=======
+  const imagesInput = $('prodImages');
+  const imgPreviewList = $('imgPreviewList');
   const btnSave = $('btnSave');
   const btnDelete = $('btnDelete');
   const msgErrorEl = $('msgError');
   const msgOkEl = $('msgOk');
-
-  // pid from query
->>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
   const params = new URLSearchParams(window.location.search);
   const pid = params.get('pid');
 
@@ -218,181 +125,23 @@
 
   function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{ 'Authorization':'Bearer '+t } : {}; }
 
-<<<<<<< HEAD
-  // 渲染圖片預覽
-  function renderPreview() {
-    imgPreviewList.innerHTML = "";
-    const raw = imagesInput.value
-      .split("\n")
-      .map(s => s.trim())
-      .filter(Boolean);
-
-    if (!raw.length) {
-      const span = document.createElement("div");
-      span.className = "thumb-empty";
-      span.textContent = "尚未設定圖片。";
-      imgPreviewList.appendChild(span);
-      return;
-    }
-
-    raw.forEach((url, idx) => {
-      const wrap = document.createElement("div");
-      wrap.className = "thumb-item";
-
-      const img = document.createElement("img");
-      img.src = url;
-      img.onerror = () => { img.src = FALLBACK_IMG; };
+  // 渲染圖片預覽（每行一張）
+  function renderPreview(){
+    imgPreviewList.innerHTML = '';
+    const raw = (imagesInput.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
+    if(!raw.length){ const span = document.createElement('div'); span.className='thumb-empty'; span.textContent='尚未設定圖片。'; imgPreviewList.appendChild(span); return; }
+    raw.forEach((url, idx)=>{
+      const wrap = document.createElement('div'); wrap.className='thumb-item';
+      const img = document.createElement('img'); img.src = url; img.onerror = ()=>{ img.src = FALLBACK_IMG; };
       wrap.appendChild(img);
-
-      if (idx === 0) {
-        const badge = document.createElement("div");
-        badge.className = "thumb-badge";
-        badge.textContent = "封面";
-        wrap.appendChild(badge);
-      }
-
+      if(idx===0){ const b = document.createElement('div'); b.className='thumb-badge'; b.textContent='封面'; wrap.appendChild(b); }
       imgPreviewList.appendChild(wrap);
     });
   }
-
-  imagesInput.addEventListener("input", renderPreview);
-=======
-  function refreshPreview(){ const url = imageInput.value.trim(); imgPreview.src = url || FALLBACK_IMG; }
-  imageInput.addEventListener('input', refreshPreview);
->>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
+  imagesInput && imagesInput.addEventListener('input', renderPreview);
 
   btnLogout.addEventListener('click', ()=>{ localStorage.removeItem('token'); window.location.href='seller_login.html'; });
 
-<<<<<<< HEAD
-      if (pid) {
-        await loadProduct();
-      }
-    } catch (err) {
-      console.error(err);
-      alert("讀取使用者資料失敗：" + err.message);
-      window.location.href = "seller_login.html";
-    }
-  });
-
-  // 2. 載入商品資料
-  async function loadProduct() {
-    try {
-      const pRef = doc(db, "products", pid);
-      const snap = await getDoc(pRef);
-
-      loadingEl.style.display = "none";
-
-      if (!snap.exists()) {
-        notFoundEl.style.display = "block";
-        return;
-      }
-
-      const data = snap.data();
-      currentProductData = data;
-
-      // 只允許自己的商品
-      if (!data.sellerId || data.sellerId !== currentSellerUid) {
-        notFoundEl.textContent = "你不是此商品的賣家，無法編輯。";
-        notFoundEl.style.display = "block";
-        return;
-      }
-
-      // 文字欄位
-      titleInput.value = data.title || "";
-      categorySelect.value = data.category || "";  // ⭐ 載入分類
-      priceInput.value = (typeof data.price === "number") ? data.price : "";
-      stockInput.value = (typeof data.stock === "number") ? data.stock : "";
-      descInput.value  = data.desc || "";
-
-      // ⭐ 多圖資料：優先 images，其次 image
-      let imgArray = [];
-      if (Array.isArray(data.images) && data.images.length > 0) {
-        imgArray = data.images;
-      } else if (data.image) {
-        imgArray = [data.image];
-      }
-      imagesInput.value = imgArray.join("\n");
-      renderPreview();
-
-      titleBar.textContent = "編輯商品 - " + (data.title || "(未命名)");
-
-      formArea.style.display = "block";
-    } catch (err) {
-      console.error(err);
-      loadingEl.style.display = "none";
-      notFoundEl.textContent = "載入商品發生錯誤：" + err.message;
-      notFoundEl.style.display = "block";
-    }
-  }
-
-  // 3. 儲存變更
-  btnSave.addEventListener("click", async () => {
-    msgErrorEl.textContent = "";
-    msgOkEl.textContent = "";
-
-    const title    = titleInput.value.trim();
-    const category = categorySelect.value; // ⭐ 分類
-    const priceStr = priceInput.value;
-    const stockStr = stockInput.value;
-
-    if (!title) {
-      msgErrorEl.textContent = "請填寫商品名稱。";
-      return;
-    }
-    if (!category) {
-      msgErrorEl.textContent = "請選擇商品分類。";
-      return;
-    }
-    if (priceStr === "" || stockStr === "") {
-      msgErrorEl.textContent = "請填寫價格與庫存數量。";
-      return;
-    }
-
-    const price = Number(priceStr);
-    const stock = Number(stockStr);
-
-    if (isNaN(price) || price < 0) {
-      msgErrorEl.textContent = "價格格式不正確。";
-      return;
-    }
-    if (isNaN(stock) || stock < 0) {
-      msgErrorEl.textContent = "庫存格式不正確。";
-      return;
-    }
-
-    // ⭐ 解析多張圖片
-    const imagesArr = imagesInput.value
-      .split("\n")
-      .map(s => s.trim())
-      .filter(Boolean);
-
-    try {
-      btnSave.disabled = true;
-      btnSave.textContent = "儲存中...";
-
-      const pRef = doc(db, "products", pid);
-      await updateDoc(pRef, {
-        title,
-        category,                      // ⭐ 存入分類
-        price,
-        stock,
-        desc: descInput.value.trim(),
-        images: imagesArr,             // 多張圖片
-        image: imagesArr[0] || null,   // 第一張當封面（給其他頁使用）
-        updatedAt: serverTimestamp()
-      });
-
-      msgOkEl.textContent = "已成功更新商品資料！";
-      titleBar.textContent = "編輯商品 - " + title;
-      renderPreview();
-    } catch (err) {
-      console.error(err);
-      msgErrorEl.textContent = "更新失敗：" + err.message;
-    } finally {
-      btnSave.disabled = false;
-      btnSave.textContent = "儲存變更";
-    }
-=======
   (async function(){
     try{
       const res = await fetch('/api/auth/me', { headers: getAuthHeader() });
@@ -410,37 +159,41 @@
       loadingEl.style.display = 'none';
       if(!res.ok){ notFoundEl.style.display='block'; notFoundEl.textContent='找不到此商品或您無權檢視'; return; }
       const data = await res.json(); currentProductData = data;
-      if(!data.sellerId || data.sellerId !== currentSellerUid){ notFoundEl.textContent = '你不是此商品的賣家，無法編輯。'; notFoundEl.style.display='block'; return; }
+      const ownerId = data.seller_id || data.sellerId;
+      if(!ownerId || String(ownerId) !== String(currentSellerUid)){ notFoundEl.textContent = '你不是此商品的賣家，無法編輯。'; notFoundEl.style.display='block'; return; }
       titleInput.value = data.title || '';
-      priceInput.value = typeof data.price === 'number' ? data.price : (data.price||'');
-      stockInput.value = typeof data.stock === 'number' ? data.stock : (data.stock||'');
-      descInput.value = data.desc || '';
-      imageInput.value = data.image || '';
-      refreshPreview();
-      titleBar.textContent = '編輯商品 - ' + (data.title||'(未命名)');
-      formArea.style.display = 'block';
+      categorySelect.value = data.category || '';
+      priceInput.value = (typeof data.price === 'number' || data.price) ? data.price : '';
+      stockInput.value = (typeof data.quantity === 'number' || data.quantity) ? data.quantity : (data.stock||'');
+      descInput.value = data.description || data.desc || '';
+      // images
+      let imgArray = [];
+      if(Array.isArray(data.images) && data.images.length) imgArray = data.images;
+      else if(data.image) imgArray = [data.image];
+      imagesInput.value = imgArray.join('\n'); renderPreview();
+      titleBar.textContent = '編輯商品 - ' + (data.title||'(未命名)'); formArea.style.display = 'block';
     }catch(err){ console.error(err); loadingEl.style.display='none'; notFoundEl.textContent = '載入商品發生錯誤：'+(err.message||err); notFoundEl.style.display='block'; }
   }
 
   btnSave.addEventListener('click', async ()=>{
     msgErrorEl.textContent=''; msgOkEl.textContent='';
-    const title = titleInput.value.trim(); const priceStr = priceInput.value; const stockStr = stockInput.value; const imageUrl = imageInput.value.trim();
+    const title = titleInput.value.trim(); const category = categorySelect.value; const priceStr = priceInput.value; const stockStr = stockInput.value;
     if(!title){ msgErrorEl.textContent='請填寫商品名稱。'; return; }
+    if(!category){ msgErrorEl.textContent='請選擇商品分類。'; return; }
     if(priceStr==='' || stockStr===''){ msgErrorEl.textContent='請填寫價格與庫存數量。'; return; }
     const price = Number(priceStr); const stock = Number(stockStr);
     if(isNaN(price) || price<0){ msgErrorEl.textContent='價格格式不正確。'; return; }
     if(isNaN(stock) || stock<0){ msgErrorEl.textContent='庫存格式不正確。'; return; }
+    const imagesArr = (imagesInput.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
     try{
       btnSave.disabled = true; btnSave.textContent = '儲存中...';
-      const payload = { title, price, stock, desc: descInput.value.trim(), image: imageUrl || null };
+      const payload = { title, category, price, quantity: stock, description: descInput.value.trim(), images: imagesArr, image: imagesArr[0] || null };
       const res = await fetch('/api/products/' + encodeURIComponent(pid), { method:'PUT', headers: Object.assign({ 'Content-Type':'application/json' }, getAuthHeader()), body: JSON.stringify(payload) });
       if(!res.ok){ const e = await res.json().catch(()=>null); throw new Error(e && e.error ? e.error : ('Status '+res.status)); }
-      msgOkEl.textContent = '已成功更新商品資料！'; titleBar.textContent = '編輯商品 - '+title; refreshPreview();
+      msgOkEl.textContent = '已成功更新商品資料！'; titleBar.textContent = '編輯商品 - '+title; renderPreview();
     }catch(err){ console.error(err); msgErrorEl.textContent = '更新失敗：'+(err.message||err); }
     finally{ btnSave.disabled = false; btnSave.textContent = '儲存變更'; }
->>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
   });
-
   btnDelete.addEventListener('click', async ()=>{
     if(!pid) return; if(!confirm('確定要刪除此商品嗎？\n刪除後無法復原，買家也將無法再看到此商品。')) return;
     try{ btnDelete.disabled = true; btnDelete.textContent = '刪除中...'; const res = await fetch('/api/products/' + encodeURIComponent(pid), { method:'DELETE', headers: getAuthHeader() }); if(!res.ok){ const e = await res.json().catch(()=>null); throw new Error(e && e.error ? e.error : ('Status '+res.status)); } alert('商品已刪除！'); window.location.href = 'seller_home.html'; }

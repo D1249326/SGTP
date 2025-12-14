@@ -3,154 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <title>SGTP 後台管理 - 買家資料表</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      background: #f7f7f7;
-    }
-
-    header {
-      background: #1f354d;
-      color: white;
-      padding: 20px 40px;
-      font-size: 26px;
-      font-weight: bold;
-    }
-
-    .container {
-      padding: 40px;
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-
-    h2 {
-      margin: 0 0 15px 0;
-    }
-
-    .toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      margin-bottom: 20px;
-      gap: 10px;
-    }
-
-    #searchBox {
-      flex: 1;
-      min-width: 250px;
-      padding: 8px;
-      border-radius: 5px;
-      border: 1px solid #aaa;
-    }
-
-    .filter-group {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .btn-filter {
-      padding: 6px 12px;
-      border-radius: 4px;
-      border: 1px solid #1f354d;
-      background: white;
-      color: #1f354d;
-      cursor: pointer;
-      font-size: 13px;
-    }
-
-    .btn-filter.active {
-      background: #1f354d;
-      color: white;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: white;
-    }
-
-    th, td {
-      padding: 12px;
-      border-bottom: 1px solid #ddd;
-      text-align: left;
-      font-size: 14px;
-    }
-
-    th {
-      background: #2d4b66;
-      color: white;
-    }
-
-    tr:hover {
-      background: #f0f4ff;
-    }
-
-    .no-data {
-      text-align: center;
-      padding: 20px;
-      color: #777;
-      background: white;
-    }
-
-    .btn-delete {
-      padding: 4px 10px;
-      border-radius: 4px;
-      border: none;
-      background: #c0392b;
-      color: white;
-      cursor: pointer;
-      font-size: 13px;
-    }
-
-    :root{
-      --base-bg: #f4f7fb;
-      --panel-bg: #ffffff;
-      --brand: #1f354d;
-      --brand-600: #26374b;
-      --danger: #c0392b;
-      --muted: #6b7280;
-      --radius: 8px;
-      --max-width: 1100px;
-    }
-
-    *{box-sizing:border-box}
-    body{font-family:Inter, 'Segoe UI', Roboto, Arial, sans-serif;background:var(--base-bg);margin:0;color:#111}
-    header{background:linear-gradient(90deg,var(--brand-600),var(--brand));color:#fff;padding:18px 24px;font-size:22px;font-weight:600}
-    .admin-nav{background:var(--panel-bg);padding:10px 40px;display:flex;gap:10px;align-items:center;border-bottom:1px solid #e6edf3}
-    .admin-nav a{color:var(--muted);text-decoration:none;padding:8px 12px;border-radius:8px;font-weight:600}
-    .admin-nav a.active{background:var(--brand);color:#fff}
-
-    .container{padding:24px;max-width:var(--max-width);margin:20px auto}
-
-    .panel{background:var(--panel-bg);border-radius:var(--radius);padding:16px;box-shadow:0 6px 18px rgba(31,53,77,0.06)}
-
-    .toolbar{display:flex;gap:12px;margin-bottom:16px;align-items:center}
-    .btn-filter{padding:8px 12px;border-radius:8px;border:1px solid #e6eef6;background:white;color:var(--brand);cursor:pointer}
-    .btn-filter.active{background:var(--brand);color:#fff;border-color:var(--brand)}
-
-    table{width:100%;border-collapse:collapse;background:transparent}
-    th, td{padding:12px;border-bottom:1px solid #f0f4f8;text-align:left}
-    th{background:transparent;color:var(--muted);font-size:13px;font-weight:700}
-    tr:hover{background:#fbfdff}
-
-    .btn-delete{padding:6px 10px;border-radius:8px;border:none;background:var(--danger);color:#fff;cursor:pointer}
-    .btn-block{padding:6px 10px;border-radius:8px;border:none;background:#4b5563;color:#fff;cursor:pointer}
-  </style>
+  <link rel="stylesheet" href="admin.css">
 </head>
 <body>
 
-<header>SGTP 後台管理 - 使用者管理（正式版）</header>
+<header>SGTP 後台管理 - 使用者管理</header>
 <div class="admin-nav">
+  <a href="admin_dashboard.html">儀表板</a>
   <a href="admin_products.html">商品管理</a>
   <a href="admin_users.html" class="active">使用者管理</a>
   <a href="admin_orders.html">訂單管理</a>
+  <a href="admin_logs.html">操作日誌</a>
 </div>
 
 <div class="container">
-  <h2>使用者列表</h2>
 
   <div class="toolbar">
     <input type="text" id="searchBox" placeholder="搜尋姓名或 Email..." />

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>SGTP - 管理操作日誌</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+<header>SGTP 後台管理 - 操作日誌</header>
+<div class="admin-nav">
+  <a href="admin_dashboard.html">儀表板</a>
+  <a href="admin_products.html">商品管理</a>
+  <a href="admin_users.html">使用者管理</a>
+  <a href="admin_orders.html">訂單管理</a>
+  <a href="admin_logs.html" class="active">操作日誌</a>
+</div>
+
+<div class="container">
+  <div class="panel">
+    <h2>操作日誌</h2>
+    <div class="toolbar">
+      <input id="q" placeholder="搜尋動作或內容..." style="flex:1;padding:8px;border-radius:6px;border:1px solid #dfe7ef">
+      <select id="filterType">
+        <option value="">全部類型</option>
+        <option value="user">user</option>
+        <option value="product">product</option>
+        <option value="order">order</option>
+      </select>
+      <button id="btnSearch" class="btn btn-light">搜尋</button>
+      <button id="btnReload" class="btn">重新整理</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>時間</th><th>管理者</th><th>動作</th><th>目標類型/ID</th><th>資料</th></tr>
+      </thead>
+      <tbody id="logsTable"></tbody>
+    </table>
+
+  </div>
+</div>
+
+<script>
+  function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{Authorization:'Bearer '+t}:{}};
+  const qInput = document.getElementById('q');
+  const filterType = document.getElementById('filterType');
+  const btnSearch = document.getElementById('btnSearch');
+  const btnReload = document.getElementById('btnReload');
+  const logsTable = document.getElementById('logsTable');
+
+  async function loadLogs(){
+    const q = qInput.value.trim();
+    const type = filterType.value;
+    const params = new URLSearchParams(); if (q) params.set('q', q); if (type) params.set('target_type', type);
+    try {
+      const res = await fetch('/api/admin/logs?' + params.toString(), { headers: Object.assign({'Content-Type':'application/json'}, getAuthHeader()) });
+      if (!res.ok) { const err = await res.json(); alert('讀取日誌失敗：' + (err.error||res.status)); return; }
+      const data = await res.json();
+      logsTable.innerHTML = '';
+      data.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.created_at || ''}</td><td>${r.admin_name || r.admin_email || r.admin_id}</td><td>${r.action}</td><td>${r.target_type||''}/${r.target_id||''}</td><td>${r.details||''}</td>`;
+        logsTable.appendChild(tr);
+      });
+    } catch (e) { console.error(e); alert('載入失敗：'+e.message); }
+  }
+
+  btnSearch.addEventListener('click', loadLogs);
+  btnReload.addEventListener('click', loadLogs);
+  loadLogs();
+</script>
+</body>
+</html>

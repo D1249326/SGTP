@@ -155,81 +155,68 @@
 
 </div>
 
-<<<<<<< HEAD
-<script type="module">
-  import { auth, db } from "./firebase.js";
-  import { onAuthStateChanged } from
-    "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-  import {
-    collection, getDocs, query, orderBy
-  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-
-  const productGrid = document.getElementById("productGrid");
-  const emptyMsg = document.getElementById("emptyMsg");
-  const searchInput = document.getElementById("searchInput");
-  const categoryFilter = document.getElementById("categoryFilter");
-
-  let allProducts = [];
-  const FALLBACK_IMG = "https://via.placeholder.com/400x300?text=No+Image";
-
-  onAuthStateChanged(auth, () => {});
-
-  async function loadProducts() {
-    const q = query(
-      collection(db, "products"),
-      orderBy("createdAt", "desc")
-    );
-
-    const snap = await getDocs(q);
-    allProducts = [];
-
-    snap.forEach(docSnap => {
-      const d = docSnap.data();
-      const images = Array.isArray(d.images) ? d.images : [];
-      const cover =
-        (images.length > 0 && images[0]) ||
-        d.image ||
-        FALLBACK_IMG;
-
-      allProducts.push({
-        id: docSnap.id,
-        title: d.title || "未命名商品",
-        price: typeof d.price === "number" ? d.price : 0,
-        desc: d.desc || "",
-        category: d.category || "其他",
-        images,
-        cover
-      });
-    });
-
-    applyFilters();
-  }
-
-  function applyFilters() {
-    const key = (searchInput.value || "").toLowerCase().trim();
-    const cat = categoryFilter.value;
-
-    const list = allProducts.filter(p => {
-      const matchName = p.title.toLowerCase().includes(key);
-      const matchCat = (cat === "全部") || (p.category === cat);
-      return matchName && matchCat;
-    });
-
-    render(list);
-=======
-
 <script>
   const productGrid = document.getElementById('productGrid');
   const emptyMsg = document.getElementById('emptyMsg');
   const searchInput = document.getElementById('searchInput');
+  const categoryFilter = document.getElementById('categoryFilter');
   let allProducts = [];
+  const FALLBACK_IMG = 'https://via.placeholder.com/400x300?text=No+Image';
+
+  async function loadProducts(){
+    try{
+      const res = await fetch('/api/products');
+      if(!res.ok){ emptyMsg.style.display = 'block'; return; }
+      const rows = await res.json();
+      allProducts = rows.map(r => {
+        const images = Array.isArray(r.images) ? r.images : (r.image ? [r.image] : []);
+        return {
+          id: r.id,
+          title: r.title || '未命名商品',
+          price: typeof r.price === 'number' ? r.price : Number(r.price) || 0,
+          desc: r.desc || r.description || '',
+          category: r.category || '其他',
+          images,
+          cover: (images[0]) || r.image || FALLBACK_IMG
+        };
+      });
+      applyFilters();
+    }catch(err){ console.error(err); emptyMsg.style.display='block'; }
+  }
+
+  function applyFilters(){
+    const key = (searchInput.value || '').toLowerCase().trim();
+    const cat = categoryFilter.value;
+    const list = allProducts.filter(p => {
+      const matchName = p.title.toLowerCase().includes(key);
+      const matchCat = (cat === '全部') || (p.category === cat);
+      return matchName && matchCat;
+    });
+    render(list);
+  }
+
+  function render(list){
+    productGrid.innerHTML = '';
+    if(!list || list.length === 0){ emptyMsg.style.display = 'block'; return; }
+    emptyMsg.style.display = 'none';
+    list.forEach(p => {
+      const div = document.createElement('div'); div.className='card';
+      div.innerHTML = `<div class="card-img"><img src="${p.cover}" alt="" class="cover"></div><div class="card-body"><h3>${p.title}</h3><div class="cat">${p.category}</div><div class="price">NT$ ${p.price}</div></div>`;
+      div.onclick = () => { location.href = 'buyer_product.html?id=' + encodeURIComponent(p.id); };
+      productGrid.appendChild(div);
+    });
+  }
+
+  searchInput.addEventListener('input', applyFilters);
+  categoryFilter.addEventListener('change', applyFilters);
+  loadProducts();
+</script>
   const FALLBACK_IMG = 'https://via.placeholder.com/400x300?text=No+Image';
 
   async function loadProducts(){
     try{
       const res = await fetch('/api/products'); if (!res.ok) throw new Error('載入失敗'); const rows = await res.json(); allProducts = rows.map(r=>({ id: r.id || r.id, title: r.title, price: r.price, desc: r.description || r.desc || '', image: (r.image || (r.images && r.images[0]) || '') })); render(allProducts);
     }catch(err){ console.error(err); productGrid.innerHTML = '載入商品錯誤：' + (err.message||err); }
->>>>>>> c9e3b7b (資料庫建立完成，管理者系統完成)
   }
 
   function render(list) {
