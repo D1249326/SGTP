@@ -37,11 +37,17 @@ async function ensureUser({ name, email, password, role='buyer', phone=null, add
   return r.lastID;
 }
 
-async function ensureProduct({ title, description='', price=0, quantity=0, seller_id=null }){
+async function ensureProduct({ title, description='', price=0, quantity=0, seller_id=null, category=null, images=null }){
   // avoid duplicates by title+seller
-  const existing = await getSql('SELECT id FROM products WHERE title = ? AND seller_id = ?', [title, seller_id]);
-  if (existing) return existing.id;
-  const r = await runSql('INSERT INTO products (title, description, price, quantity, seller_id) VALUES (?, ?, ?, ?, ?)', [title, description, price, quantity, seller_id]);
+  const existing = await getSql('SELECT id, category, image, images FROM products WHERE title = ? AND seller_id = ?', [title, seller_id]);
+  const imagesTxt = images && Array.isArray(images) ? JSON.stringify(images) : (typeof images === 'string' ? images : null);
+  const image = images && images[0] ? images[0] : null;
+  if (existing) {
+    // update missing fields if provided
+    await runSql('UPDATE products SET category = COALESCE(?, category), image = COALESCE(?, image), images = COALESCE(?, images) WHERE id = ?', [category, image, imagesTxt, existing.id]);
+    return existing.id;
+  }
+  const r = await runSql('INSERT INTO products (title, description, price, quantity, seller_id, category, image, images) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [title, description, price, quantity, seller_id, category, image, imagesTxt]);
   return r.lastID;
 }
 
@@ -60,12 +66,12 @@ async function seed(){
     console.log('Users created: ', { adminId, seller1, seller2, buyer1, buyer2 });
 
     console.log('Creating products...');
-    const p1 = await ensureProduct({ title: 'Vintage Lamp', description: '古董檯燈，狀況良好', price: 1200, quantity: 2, seller_id: seller1 });
-    const p2 = await ensureProduct({ title: 'Used Bicycle', description: '城市通勤用二手單車', price: 3000, quantity: 1, seller_id: seller1 });
-    const p3 = await ensureProduct({ title: 'Leather Jacket', description: '綁帶皮衣，幾乎全新', price: 2500, quantity: 1, seller_id: seller2 });
-    const p4 = await ensureProduct({ title: 'Coffee Table', description: '木製咖啡桌，帶刮痕', price: 800, quantity: 3, seller_id: seller2 });
-    const p5 = await ensureProduct({ title: 'Set of Mugs', description: '四入陶瓷杯', price: 400, quantity: 5, seller_id: seller1 });
-    const p6 = await ensureProduct({ title: 'Wireless Headphones', description: '藍牙耳機，功能正常', price: 1500, quantity: 2, seller_id: seller2 });
+    const p1 = await ensureProduct({ title: 'Vintage Lamp', description: '古董檯燈，狀況良好', price: 1200, quantity: 2, seller_id: seller1, category: '生活雜務', images: ['https://via.placeholder.com/400x300?text=Vintage+Lamp'] });
+    const p2 = await ensureProduct({ title: 'Used Bicycle', description: '城市通勤用二手單車', price: 3000, quantity: 1, seller_id: seller1, category: '運動器材', images: ['https://via.placeholder.com/400x300?text=Used+Bicycle'] });
+    const p3 = await ensureProduct({ title: 'Leather Jacket', description: '綁帶皮衣，幾乎全新', price: 2500, quantity: 1, seller_id: seller2, category: '衣服', images: ['https://via.placeholder.com/400x300?text=Leather+Jacket'] });
+    const p4 = await ensureProduct({ title: 'Coffee Table', description: '木製咖啡桌，帶刮痕', price: 800, quantity: 3, seller_id: seller2, category: '生活雜務', images: ['https://via.placeholder.com/400x300?text=Coffee+Table'] });
+    const p5 = await ensureProduct({ title: 'Set of Mugs', description: '四入陶瓷杯', price: 400, quantity: 5, seller_id: seller1, category: '生活雜務', images: ['https://via.placeholder.com/400x300?text=Set+of+Mugs'] });
+    const p6 = await ensureProduct({ title: 'Wireless Headphones', description: '藍牙耳機，功能正常', price: 1500, quantity: 2, seller_id: seller2, category: '3C產品', images: ['https://via.placeholder.com/400x300?text=Wireless+Headphones'] });
 
     console.log('Products created: ', { p1, p2, p3, p4, p5, p6 });
 

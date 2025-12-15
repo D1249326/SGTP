@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { db, runMigration } = require('./db');
 
 const path = require('path');
+const multer = require('multer');
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -12,6 +13,18 @@ app.use(express.json());
 // Serve project static files (so GET / will return index.html from project root)
 const publicRoot = path.join(__dirname, '..');
 app.use(express.static(publicRoot));
+
+// Serve uploaded files from /uploads
+const uploadsDir = path.join(__dirname, 'public', 'uploads');
+if (!require('fs').existsSync(uploadsDir)) require('fs').mkdirSync(uploadsDir, { recursive: true });
+app.use('/uploads', express.static(uploadsDir));
+
+// configure multer for uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) { cb(null, uploadsDir); },
+  filename: function (req, file, cb) { const ts = Date.now(); const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_'); cb(null, ts + '_' + safe); }
+});
+const upload = multer({ storage });
 
 // optional: friendly root message if no index.html
 app.get('/', (req, res, next) => {
@@ -89,9 +102,29 @@ function userAuth(req, res, next) {
   }
 }
 
+// Seller auth (require role === 'seller')
+function sellerAuth(req, res, next) {
+  const token = getTokenFromHeader(req);
+  if (!token) return res.status(401).json({ error: 'Missing token' });
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (payload.role !== 'seller') return res.status(403).json({ error: 'Requires seller role' });
+    // check blocked
+    db.get('SELECT COALESCE(is_blocked,0) AS is_blocked FROM users WHERE id = ?', [payload.id], (err, row) => {
+      if (err) return res.status(500).json({ error: 'DB error' });
+      if (row && row.is_blocked) return res.status(403).json({ error: 'User is blocked' });
+      req.user = payload;
+      next();
+    });
+  } catch (e) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+}
+
 // Helper: record admin actions for audit trail (non-blocking)
 function logAdminAction(adminId, action, targetType = null, targetId = null, details = null) {
   try {
+    console.log('logAdminAction called:', { adminId, action, targetType, targetId });
     db.run('INSERT INTO admin_logs (admin_id, action, target_type, target_id, details) VALUES (?, ?, ?, ?, ?)', [adminId, action, targetType, targetId, details], function(err) {
       if (err) console.error('Failed to write admin log:', err);
     });
@@ -126,6 +159,18 @@ app.post('/api/users/register', (req, res) => {
       res.status(500).json({ error: 'Server error' });
     }
   });
+});
+
+// Upload endpoint - authenticated users can upload images
+app.post('/api/uploads', userAuth, upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  try {
+    const urlPath = '/uploads/' + req.file.filename;
+    res.json({ url: urlPath });
+  } catch (e) {
+    console.error('Upload error', e);
+    res.status(500).json({ error: 'Upload failed' });
+  }
 });
 
 // Admin register convenience endpoint (keeps existing front-end)
@@ -354,6 +399,13 @@ app.get('/api/products/:id', (req, res) => {
   });
 });
 
+// File upload endpoint (authenticated users)
+app.post('/api/uploads', userAuth, upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const url = '/uploads/' + req.file.filename;
+  res.json({ url });
+});
+
 // Create product (admin)
 app.post('/api/products', adminAuth, (req, res) => {
   const { title, description, price, quantity, seller_id, category, image, images } = req.body;
@@ -367,6 +419,42 @@ app.post('/api/products', adminAuth, (req, res) => {
       try { row.images = row.images ? JSON.parse(row.images) : null; } catch(_) { row.images = null; }
       // record create action
       if (adminId) logAdminAction(adminId, 'create_product', 'product', row.id, JSON.stringify({ title: row.title }));
+      res.status(201).json(row);
+    });
+  });
+});
+
+// Create product (seller) - sellers can create their own products
+app.post('/api/seller/products', sellerAuth, (req, res) => {
+  const { title, description, price, quantity, category, image, images } = req.body;
+  const seller_id = req.user && req.user.id;
+  if (!title) return res.status(400).json({ error: 'Title required' });
+  const imagesTxt = images && Array.isArray(images) ? JSON.stringify(images) : (typeof images === 'string' ? images : null);
+  const imageCover = image || (images && images[0]) || null;
+  db.run('INSERT INTO products (title, description, price, quantity, seller_id, category, image, images) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [title, description || '', price || 0, quantity || 0, seller_id || null, category || null, imageCover, imagesTxt], function(err) {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    db.get('SELECT * FROM products WHERE id = ?', [this.lastID], (e, row) => {
+      if (e) return res.status(500).json({ error: 'DB error' });
+      try { row.images = row.images ? JSON.parse(row.images) : null; } catch(_) { row.images = null; }
+      res.status(201).json(row);
+    });
+  });
+});
+
+// Create product for sellers (authenticated sellers can use this)
+app.post('/api/seller/products', userAuth, (req, res) => {
+  const user = req.user;
+  if (!user || user.role !== 'seller') return res.status(403).json({ error: 'Seller role required' });
+  const seller_id = user.id;
+  const { title, description, price, quantity, category, image, images } = req.body;
+  if (!title) return res.status(400).json({ error: 'Title required' });
+  const imagesTxt = images && Array.isArray(images) ? JSON.stringify(images) : (typeof images === 'string' ? images : null);
+  const imageVal = image || (images && images.length ? images[0] : null);
+  db.run('INSERT INTO products (title, description, price, quantity, seller_id, category, image, images) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [title, description || '', price || 0, quantity || 0, seller_id, category || null, imageVal || null, imagesTxt], function(err) {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    db.get('SELECT * FROM products WHERE id = ?', [this.lastID], (e, row) => {
+      if (e) return res.status(500).json({ error: 'DB error' });
+      try { row.images = row.images ? JSON.parse(row.images) : null; } catch(_) { row.images = null; }
       res.status(201).json(row);
     });
   });
@@ -403,9 +491,20 @@ app.delete('/api/products/:id', adminAuth, (req, res) => {
 });
 
 // Orders endpoints (admin only)
-// List all orders
+// List all orders (admin) - supports ?q=&status=&limit=&offset=
 app.get('/api/orders', adminAuth, (req, res) => {
-  db.all('SELECT * FROM orders ORDER BY created_at DESC', [], (err, rows) => {
+  const q = req.query.q || '';
+  const status = req.query.status || '';
+  const limit = parseInt(req.query.limit) || 200;
+  const offset = parseInt(req.query.offset) || 0;
+
+  let sql = 'SELECT * FROM orders WHERE 1=1';
+  const params = [];
+  if (status) { sql += ' AND status = ?'; params.push(status); }
+  if (q) { sql += ' AND (buyer_email LIKE ? OR id LIKE ?)'; params.push('%' + q + '%', '%' + q + '%'); }
+  sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'; params.push(limit, offset);
+
+  db.all(sql, params, (err, rows) => {
     if (err) return res.status(500).json({ error: 'DB error' });
     const out = rows.map(r => {
       let items = [];
@@ -480,20 +579,33 @@ app.put('/api/orders/:id', adminAuth, (req, res) => {
   const { status, cancelStatus, cancelReason, canceledBy } = req.body;
   const adminId = req.user && req.user.id;
 
-  // When marking canceled, set canceled_at to now
-  const sql = `UPDATE orders SET status = ?, cancel_status = ?, cancel_reason = ?, canceled_by = ?, canceled_at = CASE WHEN (? = 'canceled' OR ? = 'admin_canceled') THEN datetime('now') ELSE canceled_at END WHERE id = ?`;
-  const params = [status || null, cancelStatus || null, cancelReason || null, canceledBy || null, status || null, cancelStatus || null, id];
-  db.run(sql, params, function(err) {
-    if (err) { console.error(err); return res.status(500).json({ error: 'DB error' }); }
-    if (this.changes === 0) return res.status(404).json({ error: 'Not found' });
-    db.get('SELECT * FROM orders WHERE id = ?', [id], (e, row) => {
-      if (e) return res.status(500).json({ error: 'DB error' });
-      try { row.items = row.items ? JSON.parse(row.items) : []; } catch (_) { row.items = []; }
-      // record cancel action if relevant
-      if (adminId && (status === 'canceled' || cancelStatus === 'admin_canceled')) {
-        logAdminAction(adminId, 'cancel_order', 'order', id, JSON.stringify({ cancelStatus, cancelReason, canceledBy }));
-      }
-      res.json(row);
+  // fetch current order to compare status
+  db.get('SELECT status, cancel_status FROM orders WHERE id = ?', [id], (err, before) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    if (!before) return res.status(404).json({ error: 'Not found' });
+
+    // When marking canceled, set canceled_at to now
+    const sql = `UPDATE orders SET status = ?, cancel_status = ?, cancel_reason = ?, canceled_by = ?, canceled_at = CASE WHEN (? = 'canceled' OR ? = 'admin_canceled') THEN datetime('now') ELSE canceled_at END WHERE id = ?`;
+    const params = [status || null, cancelStatus || null, cancelReason || null, canceledBy || null, status || null, cancelStatus || null, id];
+    db.run(sql, params, function(upErr) {
+      if (upErr) { console.error(upErr); return res.status(500).json({ error: 'DB error' }); }
+      if (this.changes === 0) return res.status(404).json({ error: 'Not found' });
+      db.get('SELECT * FROM orders WHERE id = ?', [id], (e, row) => {
+        if (e) return res.status(500).json({ error: 'DB error' });
+        try { row.items = row.items ? JSON.parse(row.items) : []; } catch (_) { row.items = []; }
+        // log status change if changed
+        if (adminId) {
+          const prevStatus = before.status;
+          const prevCancel = before.cancel_status;
+          if (status && status !== prevStatus) {
+            logAdminAction(adminId, 'update_order_status', 'order', id, JSON.stringify({ from: prevStatus, to: status }));
+          }
+          if (cancelStatus && cancelStatus !== prevCancel) {
+            logAdminAction(adminId, 'update_order_cancelStatus', 'order', id, JSON.stringify({ from: prevCancel, to: cancelStatus, reason: cancelReason }));
+          }
+        }
+        res.json(row);
+      });
     });
   });
 });

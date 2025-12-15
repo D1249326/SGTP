@@ -29,11 +29,27 @@
       只有 <b>後台資料管理者（role = "admin"）</b> 可以進入此頁面。<br/>
       在這裡可以：
       <ul>
-        <li>查看所有買家 / 賣家的訂單</li>
-        <li>將訂單狀態改成「已取消」</li>
-        <li>直接刪除訂單文件（注意：刪除後無法復原）</li>
+        <li>搜尋、篩選、分頁訂單列表</li>
+        <li>檢視訂單明細（買家／商品／地址）</li>
+        <li>更改訂單狀態（pending → paid → shipped → completed），或標記為取消</li>
+        <li>刪除訂單文件（注意：刪除後無法復原）</li>
       </ul>
     </p>
+
+    <div class="toolbar">
+      <input id="q" placeholder="搜尋訂單編號或買家 Email..." style="flex:1;padding:8px;border-radius:6px;border:1px solid #dfe7ef">
+      <select id="filterStatus">
+        <option value="">全部狀態</option>
+        <option value="pending">pending</option>
+        <option value="paid">paid</option>
+        <option value="shipped">shipped</option>
+        <option value="completed">completed</option>
+        <option value="canceled">canceled</option>
+      </select>
+      <button id="btnSearch" class="btn btn-light">搜尋</button>
+      <button id="btnReload" class="btn">重新整理</button>
+    </div>
+
     <div id="globalMsg" class="global-msg"></div>
   </div>
 
@@ -102,7 +118,10 @@
     globalMsg.textContent = '';
     globalMsg.classList.remove('ok');
     try {
-      const res = await fetch('/api/orders', { headers: getAuthHeader() });
+      const q = document.getElementById('q').value.trim();
+      const status = document.getElementById('filterStatus').value;
+      const params = new URLSearchParams(); if (q) params.set('q', q); if (status) params.set('status', status);
+      const res = await fetch('/api/orders?' + params.toString(), { headers: getAuthHeader() });
       if (!res.ok) { throw new Error('無法取得訂單，狀態碼 ' + res.status); }
       const list = await res.json();
       if (!list || list.length === 0) { ordersEmpty.style.display = 'block'; return; }
@@ -122,6 +141,11 @@
         const totalDiv = document.createElement('div'); totalDiv.className = 'order-total'; totalDiv.textContent = '訂單總額：NT$ ' + (data.totalAmount || data.total || 0);
 
         const actions = document.createElement('div'); actions.className = 'order-actions';
+        // status select + update
+        const statusSel = document.createElement('select'); ['pending','paid','shipped','completed','canceled'].forEach(s => { const opt = document.createElement('option'); opt.value = s; opt.textContent = s; if (s === data.status) opt.selected = true; statusSel.appendChild(opt); });
+        const btnUpdate = document.createElement('button'); btnUpdate.className = 'btn-small'; btnUpdate.textContent = '更新狀態'; btnUpdate.addEventListener('click', () => adminUpdateStatus(doc.id || data.id, statusSel.value));
+        actions.appendChild(statusSel); actions.appendChild(btnUpdate);
+
         if (data.status !== 'canceled') {
           const btnCancel = document.createElement('button'); btnCancel.className = 'btn-small btn-cancel'; btnCancel.textContent = '管理者取消訂單'; btnCancel.addEventListener('click', () => adminCancelOrder(doc.id || data.id)); actions.appendChild(btnCancel);
         }
@@ -163,6 +187,20 @@
       globalMsg.textContent = '已刪除訂單。'; globalMsg.classList.add('ok'); await loadAllOrders();
     } catch (err) { console.error(err); globalMsg.textContent = '刪除訂單失敗：' + (err.message || err); globalMsg.classList.remove('ok'); }
   }
+
+  // 管理者更新訂單狀態
+  async function adminUpdateStatus(orderId, newStatus) {
+    if (!orderId) return;
+    try {
+      const res = await fetch('/api/orders/' + encodeURIComponent(orderId), { method: 'PUT', headers: getAuthHeader(), body: JSON.stringify({ status: newStatus, canceledBy: currentAdminUid }) });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || '狀態更新失敗'); }
+      globalMsg.textContent = '訂單狀態已更新為 ' + newStatus; globalMsg.classList.add('ok'); await loadAllOrders();
+    } catch (err) { console.error(err); globalMsg.textContent = '更新狀態失敗：' + (err.message || err); globalMsg.classList.remove('ok'); }
+  }
+
+  // bind search/filter
+  document.getElementById('btnSearch').addEventListener('click', () => loadAllOrders());
+  document.getElementById('btnReload').addEventListener('click', () => { document.getElementById('q').value = ''; document.getElementById('filterStatus').value = ''; loadAllOrders(); });
 </script>
 </body>
 </html>

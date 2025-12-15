@@ -75,13 +75,15 @@
   <label>庫存數量</label>
   <input id="stock" type="number" min="0" />
 
-  <!-- ⭐ 多張圖片：一行一個網址 -->
+  <!-- ⭐ 多張圖片：一行一個網址 or upload -->
   <label>商品圖片網址（可多張，一行一張）</label>
   <textarea id="imageUrls"
     placeholder="例如：
 https://example.com/photo1.jpg
 https://example.com/photo2.jpg"></textarea>
   <div class="hint">會把每一行當成一張圖片，第一張會當作封面圖。</div>
+
+
 
   <label>商品描述</label>
   <textarea id="desc"></textarea>
@@ -123,6 +125,37 @@ https://example.com/photo2.jpg"></textarea>
       window.location.href = 'seller_login.html';
     }
   })();
+
+  // handle file uploads
+  const fileInput = $("fileInput");
+  const preview = $("preview");
+
+  async function uploadFile(file){
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch('/api/uploads', { method: 'POST', headers: getAuthHeader(), body: form });
+    if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
+    const data = await res.json();
+    return data.url;
+  }
+
+  fileInput.addEventListener('change', async (ev) => {
+    const files = Array.from(ev.target.files || []);
+    for(const f of files){
+      const imgEl = document.createElement('img');
+      imgEl.style.width = '80px'; imgEl.style.height = '80px'; imgEl.style.objectFit = 'cover'; imgEl.style.borderRadius = '4px';
+      imgEl.src = URL.createObjectURL(f);
+      preview.appendChild(imgEl);
+      try{
+        const url = await uploadFile(f);
+        imgEl.setAttribute('data-url', url);
+        imgEl.style.opacity = '1';
+      }catch(err){
+        imgEl.style.opacity = '0.5';
+        console.error('upload failed', err);
+      }
+    }
+  });
 
   // 上架商品（分類 + 多張 imageUrls）
   btnAdd.addEventListener("click", async () => {
@@ -170,9 +203,24 @@ https://example.com/photo2.jpg"></textarea>
         .filter(s => s.length > 0);
     }
 
+    // include any uploaded images added to preview
+    const previewImgs = Array.from(document.querySelectorAll('#preview img')).map(i => i.getAttribute('data-url'));
+    if (previewImgs.length) {
+      images = previewImgs.concat(images);
+    }
+
     try {
       btnAdd.disabled = true;
       btnAdd.textContent = "上架中...";
+
+        // combine textarea URLs and uploadedUrls
+      const combinedImages = [];
+      if (imageUrlsRaw.trim() !== "") {
+        combinedImages.push(...images);
+      }
+      // include any uploaded urls from preview dataset
+      const uploaded = Array.from(document.querySelectorAll('#preview img[data-url]')).map(img=>img.getAttribute('data-url'));
+      if (uploaded && uploaded.length) combinedImages.push(...uploaded);
 
       const payload = {
         title,
@@ -180,12 +228,11 @@ https://example.com/photo2.jpg"></textarea>
         description: desc,
         price,
         quantity: stock,
-        seller_id: currentSellerId,
-        image: images[0] || null,
-        images: images.length ? images : null
+        image: combinedImages[0] || null,
+        images: combinedImages.length ? combinedImages : null
       };
 
-      const res = await fetch('/api/products', {
+      const res = await fetch('/api/seller/products', {
         method: 'POST',
         headers: Object.assign({'Content-Type':'application/json'}, getAuthHeader()),
         body: JSON.stringify(payload)

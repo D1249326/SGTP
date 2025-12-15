@@ -24,7 +24,9 @@ npm install
 node seed.js
 ```
 
-預期輸出會顯示 migrations 的 Applied/Skipped 訊息，並列出已建立的使用者與商品。`seed.js` 避免重複建立相同 email 與相同 seller+title 的商品，因此可放心重複執行以確保資料存在。
+預期輸出會顯示 migrations 的 Applied/Skipped 訊息，並列出已建立的使用者與商品。`seed.js` 避免重複建立相同 email 與相同 seller+title 的商品，因此可放心重複執行以確保資料存在。\
+\
+注意：已新增 `category`、`image` 與 `images` 欄位的種子資料（若原先表中該欄位為 NULL，重新執行 `node seed.js` 會自動更新現有商品以填入預設 category 與 images）。
 
 ---
 
@@ -35,6 +37,16 @@ node seed.js
 - Buyers: `charlie@buyers.com` / `buyerpass` , `dana@buyers.com` / `buyerpass`
 
 這些帳號會被插入 `users` 表（若已存在相同 email，seed 會跳過該筆）。
+
+---
+
+## 圖片上傳與賣家上架（新增）
+
+- 上傳 endpoint：`POST /api/uploads`（multipart/form-data, 欄位 `file`），需帶 `Authorization: Bearer <token>`（任何已登入使用者可上傳）。上傳成功會回傳 JSON `{ url: "/uploads/<filename>" }`。
+- 上傳檔案會存到 `server/public/uploads/`，伺服器會透過 `/uploads/<filename>` 提供靜態存取。
+- 賣家上架路由：`POST /api/seller/products`（需 `seller` token），接受 `title, description, price, quantity, category, image, images`（`images` 為陣列）。
+
+前端範例：在 `seller_add_product.html` 已新增檔案選取功能，選取檔案會上傳並把回傳的 URL 加到上架內容中（第一張當封面）。
 
 ---
 
@@ -74,6 +86,26 @@ async function whoami(){
 ---
 
 ## 範例：取得商品列表與下單（簡短示範）
+
+## 圖片上傳（從前端上傳檔案）
+
+新增了 `POST /api/uploads`（需帶 Bearer token），接受 `multipart/form-data` 的 `file` 欄位，會把檔案儲存在 `server/public/uploads/` 並回傳 JSON `{ url: '/uploads/<filename>' }` 。
+
+範例（在前端用 `fetch` 上傳）：
+
+```javascript
+const form = new FormData();
+form.append('file', fileInput.files[0]);
+const res = await fetch('/api/uploads', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form });
+const data = await res.json();
+console.log('Uploaded URL:', data.url);
+```
+
+## 賣家上架商品
+
+為了讓賣家可以直接上架商品（不需管理者權限），新增了 `POST /api/seller/products`（需登入的 seller），會把 `seller_id` 由 token 決定，並接受 `image` / `images` 與 `category` 字段。
+
+前端的 `seller_add_product.html` 已支援上傳檔案並將回傳的 URL 用於 `images`。
 
 ```javascript
 // 取得商品（公開）
