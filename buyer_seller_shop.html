@@ -137,13 +137,19 @@
         const user = await uRes.json();
         sellerNameEl.textContent = user.name || '未命名賣家';
         
-        // ✅ [新增] 顯示評價
+
         const ratingBlock = document.getElementById('sellerRatingBlock');
         if (user.avg_rating) {
-            // 四捨五入到一位小數
             const score = Number(user.avg_rating).toFixed(1);
-            // 顯示星星 (簡單版)
-            ratingBlock.innerHTML = `★ ${score} <span class="rating-count">(${user.review_count} 則評價)</span>`;
+            
+            // 這裡將文字包在 <a> 標籤內，點擊後前往 buyer_seller_review.html
+            ratingBlock.innerHTML = `
+              ★ ${score} 
+              <a href="buyer_seller_review.html?sellerId=${sellerId}" 
+                style="color:#7f8c8d; text-decoration:underline; cursor:pointer; margin-left:5px; font-size:13px;">
+                (${user.review_count} 則評價)
+              </a>
+            `;
         } else {
             ratingBlock.innerHTML = `<span style="color:#999; font-size:14px;">尚無評價</span>`;
         }

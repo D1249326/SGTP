@@ -184,6 +184,15 @@ function logAdminAction(adminId, action, targetType = null, targetId = null, det
   } catch (e) { console.error('Error in logAdminAction:', e); }
 }
 
+function dbRun(sql, params) {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function(err) {
+      if (err) reject(err);
+      else resolve(this); // 回傳 this 以便取得 lastID
+    });
+  });
+}
+
 // Create user
 app.post('/api/users/register', (req, res) => {
   const { name, email, password, role, phone, address } = req.body;
@@ -742,55 +751,95 @@ function dbGet(sql, params) {
 // Create Order (Checkout)
 app.post('/api/orders', userAuth, async (req, res) => {
   const user = req.user;
-  const { items, totalAmount, shipName, shipPhone, shipAddress } = req.body;
-  if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'Items required' });
+  const { items, shipName, shipPhone, shipAddress } = req.body;
+  // 注意：前端傳來的 totalAmount 是總金額，但因為我們要拆單，所以需要針對每個賣家重新計算子訂單金額。
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'Items required' });
+  }
 
   try {
-    // 1. 驗證庫存 (Pre-check Stock)
+    // 1. 將商品依照 sellerId 分組
+    const ordersBySeller = {};
+    
     for (const item of items) {
-      const productId = item.productId || item.id;
-      const buyQty = Number(item.qty) || 1;
-      
-      const product = await dbGet('SELECT title, stock FROM products WHERE id = ?', [productId]);
-      
-      if (!product) {
-        return res.status(400).json({ error: `商品 ID ${productId} 不存在，無法結帳` });
+      // 相容 sellerId 或 seller_id
+      const sid = item.sellerId || item.seller_id;
+      if (!sid) throw new Error(`商品 "${item.title}" 資料異常，缺少賣家資訊`);
+
+      if (!ordersBySeller[sid]) {
+        ordersBySeller[sid] = {
+          items: [],
+          total: 0
+        };
       }
+      ordersBySeller[sid].items.push(item);
+    }
+
+    const createdOrderIds = [];
+
+    // 2. 針對每一組 (每一個賣家) 建立一筆訂單
+    // 使用 for...of 迴圈搭配 await 確保依序執行，避免資料庫鎖定問題
+    for (const sellerId of Object.keys(ordersBySeller)) {
+      const group = ordersBySeller[sellerId];
+      const groupItems = group.items;
+      let groupTotal = 0;
+
+      // 2-1. 檢查庫存並計算該張訂單的總金額
+      for (const item of groupItems) {
+        const productId = item.productId || item.id;
+        const buyQty = Number(item.qty) || 1;
+        
+        // 查庫存
+        const product = await dbGet('SELECT title, stock, price FROM products WHERE id = ?', [productId]);
+        
+        if (!product) throw new Error(`商品 ID ${productId} 不存在`);
+        if (product.stock < buyQty) throw new Error(`商品 "${product.title}" 庫存不足 (剩餘: ${product.stock}, 欲購買: ${buyQty})`);
+        
+        // 累加金額 (使用前端傳來的價格或資料庫價格皆可，這裡沿用前端傳遞的 price 以保持一致性)
+        groupTotal += (Number(item.price) * buyQty);
+      }
+
+      // 2-2. 寫入訂單 (Orders)
+      const sqlOrder = `
+        INSERT INTO orders (buyer_id, buyer_email, items, total_amount, status, ship_name, ship_phone, ship_address, cancellation_rejected, created_at) 
+        VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, 0, datetime("now", "+8 hours"))
+      `;
+      const itemsJson = JSON.stringify(groupItems);
       
-      if (product.stock < buyQty) {
-        return res.status(400).json({ error: `商品 "${product.title}" 庫存不足 (剩餘: ${product.stock}, 欲購買: ${buyQty})` });
+      const result = await dbRun(sqlOrder, [
+        user.id, 
+        user.email || '', 
+        itemsJson, 
+        groupTotal, 
+        shipName, 
+        shipPhone, 
+        shipAddress
+      ]);
+      
+      const newOrderId = result.lastID;
+      createdOrderIds.push(newOrderId);
+
+      // 2-3. 寫入訂單明細 (Order Items) 並扣除庫存
+      for (const item of groupItems) {
+        const productId = item.productId || item.id;
+        const qty = Number(item.qty) || 1;
+
+        await dbRun(
+          'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)', 
+          [newOrderId, productId, qty, item.price]
+        );
+        
+        await dbRun('UPDATE products SET stock = stock - ? WHERE id = ?', [qty, productId]);
       }
     }
 
-    // 2. 建立訂單
-    const sql = `
-      INSERT INTO orders (buyer_id, buyer_email, items, total_amount, status, ship_name, ship_phone, ship_address, cancellation_rejected, created_at) 
-      VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, 0, datetime("now", "+8 hours"))
-    `;
-    const itemsJson = JSON.stringify(items);
-    
-    db.run(sql, [user.id, user.email||'', itemsJson, totalAmount||0, shipName, shipPhone, shipAddress], function(err) {
-      if (err) return res.status(500).json({ error: 'DB error during order creation' });
-      const orderId = this.lastID;
-
-      // 3. 扣除庫存
-      for (const item of items) {
-        const productId = item.productId || item.id;
-        const qty = Number(item.qty) || 1;
-        if (!productId) continue;
-
-        db.run('INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)', [orderId, productId, qty, item.price]);
-        
-        db.run('UPDATE products SET stock = stock - ? WHERE id = ?', [qty, productId], function(e){
-          if(e) console.error('[Stock] Deduct failed', e);
-        });
-      }
-      res.status(201).json({ success: true, message: 'Order created', orderId });
-    });
+    // 全部成功
+    res.status(201).json({ success: true, message: 'Orders created', orderIds: createdOrderIds });
 
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Server error during checkout validation' });
+    res.status(500).json({ error: err.message || 'Server error during checkout' });
   }
 });
 
@@ -862,8 +911,10 @@ app.get('/api/seller/orders/my', sellerAuth, (req, res) => {
 app.put('/api/seller/orders/:id/cancel', sellerAuth, (req, res) => {
   const orderId = req.params.id;
   const { action } = req.body; // 'approve' or 'reject'
+  const sellerId = req.user.id; // 取得賣家 ID (發送通知用)
 
   if (action === 'approve') {
+    // ... (同意取消的部分保持不變) ...
     db.get('SELECT items FROM orders WHERE id = ?', [orderId], (err, row) => {
       if (err) return res.status(500).json({ error: 'DB error' });
       if (!row) return res.status(404).json({ error: 'Order not found' });
@@ -871,13 +922,13 @@ app.put('/api/seller/orders/:id/cancel', sellerAuth, (req, res) => {
       let items = [];
       try { items = JSON.parse(row.items); } catch(e) {}
 
+      // 回補庫存
       items.forEach(item => {
         const pid = item.productId || item.id;
         const qty = Number(item.qty) || 0;
         if (pid && qty > 0) {
           db.run('UPDATE products SET stock = stock + ? WHERE id = ?', [qty, pid], (e) => {
             if (e) console.error(`[Stock Restore] Failed for pid=${pid}`, e);
-            else console.log(`[Stock Restore] Restored ${qty} for pid=${pid}`);
           });
         }
       });
@@ -890,17 +941,42 @@ app.put('/api/seller/orders/:id/cancel', sellerAuth, (req, res) => {
     });
 
   } else if (action === 'reject') {
-    db.get('SELECT prev_status FROM orders WHERE id = ?', [orderId], (err, row) => {
+    // ✅ [修改] 這裡多選取 buyer_id，以便發送通知
+    db.get('SELECT prev_status, buyer_id FROM orders WHERE id = ?', [orderId], (err, row) => {
       if(err) return res.status(500).json({ error: "DB Error" });
+      if(!row) return res.status(404).json({ error: "Order not found" });
       
-      // ✅ [修正] 因為只有貨到付款，沒有 Paid 狀態，預設回復為 Pending (已成立)
-      let originalStatus = (row && row.prev_status) ? row.prev_status : 'Pending';
-      if (originalStatus === 'Paid') originalStatus = 'Pending'; // 再次確保
+      // 狀態回復邏輯
+      let originalStatus = (row && row.prev_status) ? row.prev_status : '已成立';
+      if (originalStatus === '已付款') originalStatus = '已成立'; 
 
       const sql = `UPDATE orders SET status = ?, cancel_status = 'Rejected', cancellation_rejected = 1 WHERE id = ?`;
       db.run(sql, [originalStatus, orderId], function(updateErr) {
         if(updateErr) return res.status(500).json({ error: updateErr.message });
-        res.json({ message: `已拒絕取消，訂單回復為 ${originalStatus}` });
+
+        // ✅ [新增] 自動發送聊天訊息通知買家
+        const buyerId = row.buyer_id;
+        const msgContent = `您的取消訂單申請（訂單 #${orderId}）已被賣家拒絕，訂單狀態已回復為原狀態。`;
+
+        const msgSql = `INSERT INTO chat_messages (room_id, sender_id, receiver_id, content, product_id, order_id, created_at) VALUES (0, ?, ?, ?, 0, ?, datetime('now', '+8 hours'))`;
+        
+        db.run(msgSql, [sellerId, buyerId, msgContent, orderId], function(msgErr) {
+            if (!msgErr) {
+                // 透過 Socket.io 即時推播給買家
+                const msgData = {
+                    id: this.lastID,
+                    sender_id: sellerId,
+                    receiver_id: buyerId,
+                    content: msgContent,
+                    product_id: 0,
+                    order_id: orderId,
+                    created_at: new Date().toISOString()
+                };
+                io.to(String(buyerId)).emit('receiveMessage', msgData);
+            }
+        });
+
+        res.json({ message: `已拒絕取消，訂單回復為 ${originalStatus}，並已通知買家。` });
       });
     });
   } else {
@@ -1114,6 +1190,95 @@ app.get('/api/orders/my', userAuth, (req, res) => {
     res.json(out);
   });
 });
+
+// 1. 初始化時確保資料表有 reply 欄位 (請將這段放在 start() 或資料庫初始化的地方)
+db.run("ALTER TABLE reviews ADD COLUMN reply TEXT", [], (err)=>{});
+db.run("ALTER TABLE reviews ADD COLUMN reply_at DATETIME", [], (err)=>{});
+
+// 2. ✅ [新增] 讀取某位賣家的所有評價 (公開，給買家看)
+// ✅ [修改] 讀取某位賣家的所有評價 (加入商品名稱解析)
+app.get('/api/users/:sellerId/reviews', (req, res) => {
+  const sellerId = req.params.sellerId;
+  
+  // 關聯 orders 表來取得 items
+  const sql = `
+    SELECT r.*, u.name as buyer_name, u.email as buyer_email, o.items
+    FROM reviews r
+    LEFT JOIN users u ON r.buyer_id = u.id
+    LEFT JOIN orders o ON r.order_id = o.id
+    WHERE r.seller_id = ?
+    ORDER BY r.created_at DESC
+  `;
+  
+  db.all(sql, [sellerId], (err, rows) => {
+    if(err) return res.status(500).json({error: 'DB error'});
+    
+    // 處理每一筆評價，解析 items JSON 取得商品標題
+    const results = rows.map(row => {
+        let productTitle = '未知商品';
+        try {
+            const items = JSON.parse(row.items);
+            if (Array.isArray(items)) {
+                // 只抓取屬於這位賣家的商品 (雖然通常訂單對應單一賣家，但做個保險)
+                // 這裡假設 items 裡面的 sellerId 是字串或數字，統一轉字串比對
+                const myItems = items.filter(i => String(i.sellerId || i.seller_id) === String(sellerId));
+                
+                // 如果有找到對應賣家的商品，就用那些商品的標題；否則顯示全部
+                const targetItems = myItems.length > 0 ? myItems : items;
+                
+                // 組合標題 (例如: "商品A, 商品B")
+                productTitle = targetItems.map(i => i.title).join(', ');
+            }
+        } catch (e) {
+            // JSON 解析失敗或欄位為空，維持 '未知商品'
+        }
+        
+        return {
+            ...row,
+            product_title: productTitle // 新增欄位回傳給前端
+        };
+    });
+
+    res.json(results);
+  });
+});
+
+// 3. ✅ [新增] 賣家讀取自己收到的評價 (私有，給賣家後台看)
+app.get('/api/seller/reviews/my', sellerAuth, (req, res) => {
+  const sellerId = req.user.id;
+  const sql = `
+    SELECT r.*, u.name as buyer_name 
+    FROM reviews r
+    LEFT JOIN users u ON r.buyer_id = u.id
+    WHERE r.seller_id = ?
+    ORDER BY r.created_at DESC
+  `;
+  db.all(sql, [sellerId], (err, rows) => {
+    if(err) return res.status(500).json({error: 'DB error'});
+    res.json(rows);
+  });
+});
+
+// 4. ✅ [新增] 賣家回覆評價
+app.put('/api/seller/reviews/:id/reply', sellerAuth, (req, res) => {
+  const reviewId = req.params.id;
+  const sellerId = req.user.id;
+  const { replyContent } = req.body;
+
+  if(!replyContent) return res.status(400).json({error: '回覆內容不能為空'});
+
+  // 確保是評論自己的評價
+  db.run(
+    'UPDATE reviews SET reply = ?, reply_at = datetime("now", "+8 hours") WHERE id = ? AND seller_id = ?',
+    [replyContent, reviewId, sellerId],
+    function(err) {
+      if(err) return res.status(500).json({error: 'DB error'});
+      if(this.changes === 0) return res.status(404).json({error: 'Review not found or permission denied'});
+      res.json({success: true});
+    }
+  );
+});
+
 
 const port = process.env.PORT || 3000;
 async function start() {

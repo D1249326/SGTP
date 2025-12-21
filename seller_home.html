@@ -327,6 +327,11 @@
         ratingCountText.textContent = `(${user.review_count} 則評價)`;
         ratingBadge.style.display = 'flex';
       }
+      
+      ratingBadge.style.cursor = 'pointer'; // 增加手型游標
+      ratingBadge.onclick = () => {
+          window.location.href = 'seller_review.html';
+      };
 
       // 2. 平行載入「商品列表」與「訂單統計」
       await Promise.all([loadProducts(), loadOrderStats()]);

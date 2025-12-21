@@ -223,7 +223,7 @@
     </div>
   </div>
 
-  <script>
+<script>
     /* ========== Header 邏輯 ========== */
     const headerUserEl = document.getElementById('headerUser');
     const headerLogoutBtn = document.getElementById('headerLogoutBtn');
@@ -249,7 +249,6 @@
       try{
         const res = await fetch('/api/auth/me', { headers: getAuthHeader() });
         if (!res.ok) { 
-          // 未登入則導向登入頁
           alert('請先登入買家帳號'); 
           window.location.href='buyer_login.html'; 
           return; 
@@ -257,7 +256,6 @@
         const user = await res.json();
         if(headerUserEl) headerUserEl.textContent = user.name || user.email;
         
-        // 載入訂單
         loadOrders();
       }catch(e){ console.error(e); }
     })();
@@ -277,7 +275,7 @@
     const ratingScore = document.getElementById('ratingScore');
     const btnSubmitReview = document.getElementById('btnSubmitReview');
     const reviewComment = document.getElementById('reviewComment');
-    let currentReviewOrder = null; // 暫存目前正在評價的訂單資訊
+    let currentReviewOrder = null;
 
     async function loadOrders(){
       ordersWrap.innerHTML = ''; 
@@ -300,6 +298,9 @@
           
           // 狀態判斷
           const st = (row.status||'').toLowerCase();
+          // ✅ [新增] 檢查是否曾被拒絕 (server.js 回傳欄位為 cancellation_rejected)
+          const isRejected = (row.cancellation_rejected === 1);
+
           let badgeClass='badge-pending', badgeText='已成立';
           
           if(st === 'shipped') { badgeClass='badge-shipped'; badgeText='已出貨'; }
@@ -341,15 +342,26 @@
 
           // 動態加入按鈕
           const actDiv = div.querySelector(`#actions-${row.id}`);
-          const sellerId = items[0]?.sellerId || items[0]?.seller_id; // 取得賣家ID
+          const sellerId = items[0]?.sellerId || items[0]?.seller_id; 
 
           // 1. 取消訂單 (僅限 Pending)
           if(st === 'pending'){
-             const btn = document.createElement('button'); 
-             btn.className='btn btn-cancel-request'; 
-             btn.textContent='提出取消訂單';
-             btn.onclick = () => requestCancel(row.id); 
-             actDiv.appendChild(btn);
+             // ✅ [修改] 如果被拒絕過，就不顯示按鈕，改顯示提示
+             if (isRejected) {
+                 const span = document.createElement('span');
+                 span.textContent = '❌ 取消申請已被拒絕';
+                 span.style.color = '#c0392b'; 
+                 span.style.fontSize = '14px';
+                 span.style.fontWeight = 'bold';
+                 span.style.marginRight = '10px';
+                 actDiv.appendChild(span);
+             } else {
+                 const btn = document.createElement('button'); 
+                 btn.className='btn btn-cancel-request'; 
+                 btn.textContent='提出取消訂單';
+                 btn.onclick = () => requestCancel(row.id); 
+                 actDiv.appendChild(btn);
+             }
           } 
           // 2. 完成訂單 (僅限 Shipped)
           else if(st === 'shipped'){
@@ -379,7 +391,7 @@
              }
           }
 
-          // 4. 聯絡賣家 (排除已取消，已完成的訂單通常還是可以聯絡，所以保留)
+          // 4. 聯絡賣家 (排除已取消)
           if(sellerId && st !== 'cancelled'){
              const btn = document.createElement('button'); 
              btn.className='btn btn-chat'; 
@@ -431,39 +443,30 @@
       } catch(e) { alert('失敗：'+e.message); }
     }
 
-    /* ========== 評價 Modal 邏輯 ========== */
-    
-    // 開啟評價視窗
+    /* ========== 評價 Modal 邏輯 (保持不變) ========== */
     function openReviewModal(orderId, sellerId) {
         if(!sellerId) { alert('無法辨識賣家 ID，無法評價'); return; }
         currentReviewOrder = { orderId, sellerId };
-        
-        // 重置表單
         if(ratingRange) ratingRange.value = 5;
         if(ratingScore) ratingScore.textContent = '5';
         if(reviewComment) reviewComment.value = '';
-        
         if(reviewModal) reviewModal.style.display = 'flex';
     }
 
-    // 關閉評價視窗 (綁定到 window 以便 HTML onclick 使用)
     window.closeReviewModal = function() {
         if(reviewModal) reviewModal.style.display = 'none';
         currentReviewOrder = null;
     }
 
-    // 拉桿事件監聽
     if(ratingRange && ratingScore) {
         ratingRange.addEventListener('input', (e) => {
             ratingScore.textContent = e.target.value;
         });
     }
 
-    // 送出評價
     if(btnSubmitReview) {
         btnSubmitReview.addEventListener('click', async () => {
             if(!currentReviewOrder) return;
-            
             try {
                 const res = await fetch('/api/reviews', {
                     method: 'POST',
@@ -479,7 +482,7 @@
                 if(res.ok) {
                     alert('評價成功！');
                     closeReviewModal();
-                    loadOrders(); // 重新整理列表以更新按鈕狀態
+                    loadOrders(); 
                 } else {
                     alert('評價失敗：' + (data.error || '未知錯誤'));
                 }
@@ -489,8 +492,7 @@
             }
         });
     }
-
-  </script>
+</script>
 
 </body>
 </html>

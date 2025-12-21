@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>我的評價管理 - SGTP</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; }
+    header { background: #2c3e50; color: white; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { margin: 0; font-size: 20px; }
+    .btn-home { background: #fff; color: #2c3e50; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 14px; font-weight: bold; }
+
+    .container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+    
+    .stats-bar { display: flex; gap: 20px; background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .stat-item { flex: 1; text-align: center; border-right: 1px solid #eee; }
+    .stat-item:last-child { border: none; }
+    .stat-val { font-size: 24px; font-weight: bold; color: #2c3e50; }
+    .stat-label { font-size: 13px; color: #777; margin-top: 5px; }
+
+    .review-card { background: white; padding: 20px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .r-top { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
+    .r-order { font-size: 13px; color: #888; }
+    .r-stars { color: #f39c12; font-weight: bold; }
+    .r-content { font-size: 16px; margin-bottom: 15px; color: #333; }
+
+    /* 回覆區域 */
+    .reply-section { background: #f9f9f9; padding: 15px; border-radius: 6px; }
+    .replied-content { color: #555; font-size: 14px; }
+    .replied-label { font-weight: bold; color: #1f354d; margin-bottom: 5px; }
+    
+    textarea { width: 100%; height: 60px; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 8px; resize: vertical; }
+    .btn-reply { background: #1f354d; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+    .btn-reply:hover { background: #34495e; }
+
+    .empty { text-align: center; color: #888; margin-top: 50px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>我的評價管理</h1>
+  <a href="seller_home.html" class="btn-home">回賣家中心</a>
+</header>
+
+<div class="container">
+  <div class="stats-bar">
+    <div class="stat-item">
+      <div class="stat-val" id="avgScore">-</div>
+      <div class="stat-label">平均評分</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-val" id="totalCount">-</div>
+      <div class="stat-label">總評價數</div>
+    </div>
+  </div>
+
+  <div id="reviewList">
+    <div style="text-align:center; padding:20px;">載入中...</div>
+  </div>
+</div>
+
+<script>
+  function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{ 'Authorization':'Bearer '+t, 'Content-Type':'application/json' } : { 'Content-Type':'application/json' }; }
+
+  const reviewListEl = document.getElementById('reviewList');
+  const avgScoreEl = document.getElementById('avgScore');
+  const totalCountEl = document.getElementById('totalCount');
+
+  // 初始化
+  (async function init(){
+    try {
+      const res = await fetch('/api/seller/reviews/my', { headers: getAuthHeader() });
+      if(!res.ok) { alert('無法讀取評價，請重新登入'); window.location.href='seller_login.html'; return; }
+      
+      const reviews = await res.json();
+      renderStats(reviews);
+      renderReviews(reviews);
+    } catch(e) {
+      console.error(e);
+      alert('連線錯誤');
+    }
+  })();
+
+  function renderStats(reviews) {
+    if(!reviews.length) {
+      avgScoreEl.textContent = '0.0';
+      totalCountEl.textContent = '0';
+      return;
+    }
+    const sum = reviews.reduce((a, b) => a + b.rating, 0);
+    const avg = (sum / reviews.length).toFixed(1);
+    avgScoreEl.textContent = avg;
+    totalCountEl.textContent = reviews.length;
+  }
+
+  function renderReviews(list) {
+    reviewListEl.innerHTML = '';
+    if(!list.length) {
+      reviewListEl.innerHTML = '<div class="empty">目前沒有收到任何評價。</div>';
+      return;
+    }
+
+    list.forEach(r => {
+      const card = document.createElement('div');
+      card.className = 'review-card';
+      
+      const date = new Date(r.created_at).toLocaleDateString();
+      const stars = '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
+
+      let html = `
+        <div class="r-top">
+          <div>
+            <span style="font-weight:bold;">${r.buyer_name || '買家'}</span> 
+            <span class="r-stars">${stars}</span>
+          </div>
+          <div class="r-order">
+            訂單 #${r.order_id} | ${date}
+          </div>
+        </div>
+        <div class="r-content">${r.comment || ''}</div>
+      `;
+
+      // 回覆區塊
+      if (r.reply) {
+        // 已回覆
+        html += `
+          <div class="reply-section">
+            <div class="replied-label">你的回覆：</div>
+            <div class="replied-content">${r.reply}</div>
+            <div style="font-size:12px; color:#999; margin-top:4px;">${new Date(r.reply_at).toLocaleString()}</div>
+          </div>
+        `;
+      } else {
+        // 尚未回覆
+        html += `
+          <div class="reply-section" id="replyBox-${r.id}">
+            <textarea id="input-${r.id}" placeholder="回覆買家的評價..."></textarea>
+            <button class="btn-reply" onclick="submitReply(${r.id})">送出回覆</button>
+          </div>
+        `;
+      }
+
+      card.innerHTML = html;
+      reviewListEl.appendChild(card);
+    });
+  }
+
+  async function submitReply(reviewId) {
+    const input = document.getElementById(`input-${reviewId}`);
+    const content = input.value.trim();
+    if(!content) { alert('請輸入回覆內容'); return; }
+
+    if(!confirm('確定要送出回覆嗎？送出後無法修改。')) return;
+
+    try {
+      const res = await fetch(`/api/seller/reviews/${reviewId}/reply`, {
+        method: 'PUT',
+        headers: getAuthHeader(),
+        body: JSON.stringify({ replyContent: content })
+      });
+      
+      if(res.ok) {
+        alert('回覆成功！');
+        location.reload(); // 重新整理頁面顯示回覆
+      } else {
+        const err = await res.json();
+        alert('失敗：' + err.error);
+      }
+    } catch(e) {
+      alert('連線錯誤');
+    }
+  }
+</script>
+
+</body>
+</html>
