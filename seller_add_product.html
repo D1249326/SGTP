@@ -5,17 +5,82 @@
   <title>SGTP - 上架商品</title>
   <style>
     body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f7f7f7; }
+    
+    /* Header */
     header {
-      background:#1f354d; color:white; padding:18px 32px;
-      font-size:22px; display:flex; justify-content:space-between; align-items:center;
+      background: #2c3e50; /* 深藍色 */
+      color: white;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
-    .user-info { font-size:14px; }
-    .btn {
-      padding:6px 12px; border-radius:4px; border:none;
-      cursor:pointer; font-size:14px; margin-left:8px;
+    .header-logo {
+      font-size: 20px;
+      font-weight: bold;
+      color: white;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
     }
-    .btn-light { background:#ffffff; color:#1f354d; }
-    .btn-danger { background:#c0392b; color:white; }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .icon-btn {
+      color: white;
+      text-decoration: none;
+      font-size: 24px;
+      cursor: pointer;
+      position: relative;
+    }
+    .icon-btn:hover { opacity: 0.8; }
+
+    /* 下拉選單 */
+    .user-menu {
+      position: relative;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      height: 60px;
+    }
+    .user-name { font-size: 16px; font-weight: bold; margin-right: 5px; }
+    .user-avatar {
+      width: 32px; height: 32px;
+      background-color: #bdc3c7;
+      border-radius: 50%;
+      display: flex; justify-content: center; align-items: center;
+      font-size: 14px; color: #2c3e50;
+      margin-right: 8px;
+    }
+    .dropdown-content {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background-color: white;
+      min-width: 150px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      border-radius: 0 0 4px 4px;
+      overflow: hidden;
+      z-index: 1000;
+    }
+    .dropdown-content a {
+      color: #333;
+      padding: 12px 16px;
+      text-decoration: none;
+      display: block;
+      font-size: 14px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .dropdown-content a:hover { background-color: #f5f5f5; color: #2c3e50; }
+    .user-menu:hover .dropdown-content { display: block; }
+
+    /* 容器與表單 */
     .container {
       max-width:600px; margin:30px auto; background:white;
       padding:24px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.15);
@@ -44,11 +109,18 @@
 <body>
 
 <header>
-  <div>SGTP 二手商品平台 - 上架商品</div>
-  <div class="user-info">
-    <span id="userName">賣家</span>
-    <button class="btn btn-light" onclick="location.href='seller_home.html'">回賣家首頁</button>
-    <button id="btnLogout" class="btn btn-danger">登出</button>
+  <a href="seller_home.html" class="header-logo">SGTP-賣家中心</a>
+  <div class="header-right">
+    <a href="seller_chats.html" class="icon-btn" title="聊聊">💬</a>
+    <div class="user-menu">
+      <div class="user-avatar">S</div>
+      <span class="user-name" id="headerUserName">賣家</span>
+      <span>▼</span>
+      <div class="dropdown-content">
+        <a href="seller_profile.html">我的資料</a>
+        <a href="#" id="headerLogoutBtn">登出</a>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -75,15 +147,18 @@
   <label>庫存數量</label>
   <input id="stock" type="number" min="0" />
 
-  <!-- ⭐ 多張圖片：一行一個網址 or upload -->
-  <label>商品圖片網址（可多張，一行一張）</label>
-  <textarea id="imageUrls"
-    placeholder="例如：
-https://example.com/photo1.jpg
-https://example.com/photo2.jpg"></textarea>
-  <div class="hint">會把每一行當成一張圖片，第一張會當作封面圖。</div>
+  <label>商品圖片（可多張）</label>
+  <input
+    type="file"
+    id="imageFiles"
+    accept="image/*"
+    multiple
+  />
+  <div class="hint">
+    可一次選擇多張圖片，第一張會當作封面圖。
+  </div>
 
-
+  <div id="imagePreview" style="display:flex; gap:8px; margin-top:8px;"></div>
 
   <label>商品描述</label>
   <textarea id="desc"></textarea>
@@ -93,175 +168,195 @@ https://example.com/photo2.jpg"></textarea>
   <div id="msg" class="error"></div>
   <div id="ok" class="success"></div>
 
-  <div class="back">
-    <a href="seller_home.html">&lt; 返回賣家首頁</a>
-  </div>
 </div>
 
-  <script>
+<script>
   const $ = id => document.getElementById(id);
-  const userNameSpan = $("userName");
-  const btnLogout = $("btnLogout");
+
+  // ✅ [修正] 這裡改為正確的 HTML ID (headerUserName, headerLogoutBtn)
+  const userNameSpan = $("headerUserName");
+  const btnLogout = $("headerLogoutBtn");
+  
   const btnAdd = $("btnAdd");
   const msgEl = $("msg");
   const okEl = $("ok");
 
+  const fileInput = $("imageFiles");
+  const preview = $("imagePreview");
+
   let currentSellerId = null;
 
-  function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{ 'Authorization':'Bearer '+t } : {}; }
+  function getAuthHeader(){
+    const t = localStorage.getItem('token');
+    return t ? { 'Authorization':'Bearer ' + t } : {};
+  }
 
-  // 確認登入者為 seller
+  /* ===============================
+     驗證登入者為賣家
+  ================================ */
   (async function(){
     try{
       const res = await fetch('/api/auth/me', { headers: getAuthHeader() });
-      if (!res.ok) { alert('請先登入賣家帳號'); window.location.href='seller_login.html'; return; }
+      if (!res.ok) {
+        alert('請先登入賣家帳號');
+        window.location.href='seller_login.html';
+        return;
+      }
       const user = await res.json();
-      if (!user || user.role !== 'seller') { alert('此帳號不是賣家角色'); localStorage.removeItem('token'); window.location.href='seller_login.html'; return; }
+      if (!user || user.role !== 'seller') {
+        alert('此帳號不是賣家角色');
+        localStorage.removeItem('token');
+        window.location.href='seller_login.html';
+        return;
+      }
       currentSellerId = user.id;
-      userNameSpan.textContent = user.name || user.email || '賣家';
+      
+      // 確保元素存在再賦值，避免報錯
+      if(userNameSpan) {
+        userNameSpan.textContent = user.name || user.email || '賣家';
+      }
     } catch (err) {
       console.error(err);
-      alert('讀取使用者資料失敗：' + err.message);
-      window.location.href = 'seller_login.html';
+      alert('讀取使用者資料失敗');
+      // window.location.href='seller_login.html'; // 暫時註解方便除錯
     }
   })();
 
-  // handle file uploads
-  const fileInput = $("fileInput");
-  const preview = $("preview");
-
+  /* ===============================
+     上傳圖片
+  ================================ */
   async function uploadFile(file){
     const form = new FormData();
     form.append('file', file);
-    const res = await fetch('/api/uploads', { method: 'POST', headers: getAuthHeader(), body: form });
-    if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
+
+    const res = await fetch('/api/uploads', {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: form
+    });
+
+    if (!res.ok) throw new Error('Upload failed');
     const data = await res.json();
     return data.url;
   }
 
+  /* ===============================
+     圖片選擇 + 預覽 + 上傳
+  ================================ */
   fileInput.addEventListener('change', async (ev) => {
     const files = Array.from(ev.target.files || []);
-    for(const f of files){
-      const imgEl = document.createElement('img');
-      imgEl.style.width = '80px'; imgEl.style.height = '80px'; imgEl.style.objectFit = 'cover'; imgEl.style.borderRadius = '4px';
-      imgEl.src = URL.createObjectURL(f);
-      preview.appendChild(imgEl);
-      try{
+    preview.innerHTML = ""; // 重新選擇時清空
+
+    for (const f of files) {
+      const img = document.createElement('img');
+      img.style.width = '80px';
+      img.style.height = '80px';
+      img.style.objectFit = 'cover';
+      img.style.borderRadius = '4px';
+      img.style.opacity = '0.6';
+
+      img.src = URL.createObjectURL(f);
+      preview.appendChild(img);
+
+      try {
         const url = await uploadFile(f);
-        imgEl.setAttribute('data-url', url);
-        imgEl.style.opacity = '1';
-      }catch(err){
-        imgEl.style.opacity = '0.5';
-        console.error('upload failed', err);
+        img.dataset.url = url;
+        img.style.opacity = '1';
+      } catch (err) {
+        console.error(err);
+        img.style.opacity = '0.3';
       }
     }
   });
 
-  // 上架商品（分類 + 多張 imageUrls）
+  /* ===============================
+     上架商品
+  ================================ */
   btnAdd.addEventListener("click", async () => {
     msgEl.textContent = "";
     okEl.textContent = "";
 
     if (!currentSellerId) {
-      msgEl.textContent = "尚未確認賣家身分，請重新登入。";
+      msgEl.textContent = "尚未確認賣家身分";
       return;
     }
 
     const title = $("title").value.trim();
     const category = $("category").value;
-    const priceStr = $("price").value;
-    const stockStr = $("stock").value;
-    const imageUrlsRaw = $("imageUrls").value;
+    const price = Number($("price").value);
+    const stock = Number($("stock").value || 0);
     const desc = $("desc").value.trim();
 
-    if (!title || !priceStr) {
-      msgEl.textContent = "請至少填寫商品名稱與價格。";
+    if (!title || isNaN(price)) {
+      msgEl.textContent = "請填寫正確的商品名稱與價格";
       return;
     }
     if (!category) {
-      msgEl.textContent = "請選擇商品分類。";
+      msgEl.textContent = "請選擇商品分類";
       return;
     }
 
-    const price = Number(priceStr);
-    const stock = stockStr ? Number(stockStr) : 0;
-
-    if (isNaN(price) || price < 0) {
-      msgEl.textContent = "價格格式不正確。";
-      return;
-    }
-    if (isNaN(stock) || stock < 0) {
-      msgEl.textContent = "庫存格式不正確。";
-      return;
-    }
-
-    let images = [];
-    if (imageUrlsRaw.trim() !== "") {
-      images = imageUrlsRaw
-        .split(/\r?\n|,/) 
-        .map(s => s.trim())
-        .filter(s => s.length > 0);
-    }
-
-    // include any uploaded images added to preview
-    const previewImgs = Array.from(document.querySelectorAll('#preview img')).map(i => i.getAttribute('data-url'));
-    if (previewImgs.length) {
-      images = previewImgs.concat(images);
-    }
+    const images = Array.from(
+      document.querySelectorAll('#imagePreview img[data-url]')
+    ).map(img => img.dataset.url);
 
     try {
       btnAdd.disabled = true;
       btnAdd.textContent = "上架中...";
 
-        // combine textarea URLs and uploadedUrls
-      const combinedImages = [];
-      if (imageUrlsRaw.trim() !== "") {
-        combinedImages.push(...images);
-      }
-      // include any uploaded urls from preview dataset
-      const uploaded = Array.from(document.querySelectorAll('#preview img[data-url]')).map(img=>img.getAttribute('data-url'));
-      if (uploaded && uploaded.length) combinedImages.push(...uploaded);
-
       const payload = {
         title,
-        category: category || null,
+        category,
         description: desc,
         price,
+        stock: stock,
         quantity: stock,
-        image: combinedImages[0] || null,
-        images: combinedImages.length ? combinedImages : null
+        image: images[0] || null,  // 封面
+        images: images.length ? images : null
       };
 
       const res = await fetch('/api/seller/products', {
         method: 'POST',
-        headers: Object.assign({'Content-Type':'application/json'}, getAuthHeader()),
+        headers: {
+          'Content-Type':'application/json',
+          ...getAuthHeader()
+        },
         body: JSON.stringify(payload)
       });
+
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || JSON.stringify(data));
+      if (!res.ok) throw new Error(data.error || '上架失敗');
 
       okEl.textContent = "上架成功！商品ID：" + data.id;
 
+      // 清空表單
       $("title").value = "";
       $("category").value = "";
       $("price").value = "";
       $("stock").value = "";
-      $("imageUrls").value = "";
       $("desc").value = "";
+      preview.innerHTML = "";
+      fileInput.value = ""; // 清空檔案輸入
+
     } catch (err) {
-      console.error(err);
-      msgEl.textContent = "上架失敗：" + err.message;
+      msgEl.textContent = err.message;
     } finally {
       btnAdd.disabled = false;
       btnAdd.textContent = "上架商品";
+      window.location.href = 'seller_home.html'; 
     }
   });
 
-  // 登出
-  btnLogout.addEventListener("click", async () => {
-    localStorage.removeItem('token');
-    window.location.href = 'seller_login.html';
-  });
+  /* ===============================
+     登出
+  ================================ */
+  if (btnLogout) {
+    btnLogout.addEventListener("click", (e) => {
+        e.preventDefault();
+        localStorage.removeItem('token');
+        window.location.href = 'seller_login.html';
+    });
+  }
 </script>
 
 </body>

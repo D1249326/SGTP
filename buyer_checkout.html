@@ -4,19 +4,114 @@
   <meta charset="UTF-8" />
   <title>SGTP - 結帳</title>
   <style>
+    /* =========================================
+       1. 全局與 Header 樣式
+       ========================================= */
     body { margin:0; font-family: Arial, sans-serif; background:#f5f5f5; }
+    
     header {
-      background:#1f354d; color:white; padding:16px 24px;
-      display:flex; justify-content:space-between; align-items:center;
+      background: #1f354d;
+      color: white;
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      height: 50px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    header h1 { margin:0; font-size:22px; }
-    header .right button { margin-left:8px; }
 
-    .btn { padding:8px 14px; border:none; border-radius:4px; cursor:pointer; font-size:14px; }
-    .btn-light { background:#ffffff; color:#1f354d; }
-    .btn-danger { background:#c0392b; color:white; }
-    .btn-primary { background:#1f354d; color:white; }
+    .logo {
+      font-size: 28px;
+      font-weight: bold;
+      color: white;
+      text-decoration: none;
+      white-space: nowrap;
+      margin-right: 10px;
+    }
 
+    .header-search {
+      flex: 1;
+      max-width: 600px;
+      margin: 0 auto;
+      display: flex;
+      position: relative;
+    }
+    .header-search input {
+      width: 100%;
+      padding: 8px 36px 8px 12px;
+      border-radius: 4px;
+      border: none;
+      font-size: 14px;
+      outline: none;
+    }
+    .search-icon {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #666;
+      pointer-events: none;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-left: auto;
+    }
+
+    .icon-btn {
+      color: white;
+      text-decoration: none;
+      font-size: 24px;
+      transition: opacity 0.2s;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+    }
+    .icon-btn:hover { opacity: 0.8; }
+
+    .user-menu {
+      position: relative;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      height: 50px;
+      padding-left: 8px;
+    }
+    .user-name { font-size: 16px; font-weight: bold; color: white; }
+    .user-name::after { content: ' ▼'; font-size: 10px; margin-left: 6px; vertical-align: middle; }
+    
+    .dropdown-content {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background-color: white;
+      min-width: 140px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      border-radius: 0 0 4px 4px;
+      overflow: hidden;
+      z-index: 1001;
+    }
+    .dropdown-content a {
+      color: #333;
+      padding: 12px 16px;
+      text-decoration: none;
+      display: block;
+      font-size: 14px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .dropdown-content a:hover { background-color: #f5f5f5; color: #1f354d; }
+    .user-menu:hover .dropdown-content { display: block; }
+    .user-avatar { width: 30px; height: 30px; background-color: #bdc3c7; border-radius: 50%;display: flex; justify-content: center; align-items: center; font-size: 14px; color: #2c3e50;margin-right: 8px;}
+
+    /* =========================================
+       2. 結帳頁面樣式
+       ========================================= */
     .container {
       max-width:960px; margin:24px auto;
       background:white; border-radius:8px;
@@ -30,6 +125,8 @@
     table { width:100%; border-collapse:collapse; font-size:14px; }
     th, td { border-bottom:1px solid #eee; padding:8px; }
     th { background:#f0f3f6; }
+    
+    th.price, th.qty, th.subtotal { text-align:right; }
     td.price, td.qty, td.subtotal { text-align:right; }
 
     .total-row td { font-weight:bold; border-top:2px solid #ccc; }
@@ -40,6 +137,7 @@
       width:260px; padding:6px 8px;
       border-radius:4px; border:1px solid #ccc;
     }
+    .payment-info { margin: 8px 0; font-weight: bold; color: #1f354d; }
 
     .msg { margin-top:10px; font-size:14px; color:#c0392b; }
     .msg-ok { color:#27ae60; }
@@ -48,14 +146,29 @@
 </head>
 
 <body>
-<header>
-  <h1>SGTP 二手商品平台 - 結帳</h1>
-  <div class="right">
-    <button class="btn btn-light" onclick="location.href='buyer_cart.html'">← 回購物車</button>
-    <button class="btn btn-light" onclick="location.href='buyer_shop.html'">逛逛其他商品</button>
-    <button id="btnLogout" class="btn btn-danger">登出</button>
-  </div>
-</header>
+
+  <header>
+    <a href="buyer_shop.html" class="logo">SGTP</a>
+    
+    <div class="header-search">
+      <input id="navSearch" type="text" placeholder="搜尋商品名稱..." />
+    </div>
+
+    <div class="header-right">
+      <a href="buyer_cart.html" class="icon-btn" title="購物車">🛒</a>
+      <a href="buyer_chats.html" class="icon-btn" title="聊天室">💬</a>
+      
+      <div class="user-menu">
+        <div class="user-avatar">B</div>
+        <span class="user-name" id="headerUser">載入中...</span>
+        <div class="dropdown-content">
+          <a href="buyer_home.html">我的資料</a>
+          <a href="buyer_orders.html">訂單查詢</a>
+          <a href="#" id="headerLogoutBtn">登出</a>
+        </div>
+      </div>
+    </div>
+  </header>
 
 <div class="container">
   <h2>訂單確認</h2>
@@ -85,7 +198,10 @@
   </div>
 
   <div class="section">
-    <h3>收件資訊</h3>
+    <h3>收件資訊與付款</h3>
+    
+    <div class="payment-info">付款方式：貨到付款 (Cash on Delivery)</div>
+    
     <div class="form-row">
       <label>收件人</label><input id="shipName">
     </div>
@@ -104,7 +220,34 @@
 </div>
 
 <script>
-  const btnLogout      = document.getElementById('btnLogout');
+  /* ========== 1. Header 邏輯 ========== */
+  const headerUserEl = document.getElementById('headerUser');
+  const headerLogoutBtn = document.getElementById('headerLogoutBtn');
+  const navSearch = document.getElementById('navSearch');
+
+  // 登出功能
+  if(headerLogoutBtn){
+    headerLogoutBtn.addEventListener('click', (e)=>{
+      e.preventDefault();
+      localStorage.removeItem('token');
+      alert('已登出');
+      window.location.href = 'buyer_login.html';
+    });
+  }
+
+  // 搜尋框功能 (按下 Enter 跳轉)
+  if(navSearch){
+    navSearch.addEventListener('keypress', (e)=>{
+      if(e.key === 'Enter'){
+        const val = navSearch.value.trim();
+        if(val) {
+          window.location.href = 'buyer_shop.html?q=' + encodeURIComponent(val);
+        }
+      }
+    });
+  }
+
+  /* ========== 2. 結帳頁面邏輯 ========== */
   const cartEmptyEl    = document.getElementById('cartEmpty');
   const cartTableWrap  = document.getElementById('cartTableWrap');
   const cartBody       = document.getElementById('cartBody');
@@ -120,70 +263,167 @@
   let currentUser = null;
   let cartItems = [];
 
-  function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{ 'Authorization':'Bearer '+t, 'Content-Type':'application/json' } : { 'Content-Type':'application/json' }; }
-
-  // 登出
-  btnLogout.addEventListener('click', ()=>{ localStorage.removeItem('token'); alert('已登出'); window.location.href = 'buyer_login.html'; });
+  function getToken(){ return localStorage.getItem('token'); }
+  function getAuthHeader(){ const t = getToken(); return t ? { 'Authorization': 'Bearer ' + t } : {}; }
+  function getJsonAuthHeader(){ return { 'Content-Type': 'application/json', ...getAuthHeader() }; }
 
   (async function init(){
     try{
-      // 確認登入
       const me = await fetch('/api/auth/me', { headers: getAuthHeader() });
       if (!me.ok) { alert('請先登入買家帳號'); window.location.href='buyer_login.html'; return; }
+      
       currentUser = await me.json();
-      if (!currentUser || currentUser.role !== 'buyer') { alert('此帳號無結帳權限'); localStorage.removeItem('token'); window.location.href='buyer_login.html'; return; }
-      // 預設收件資訊從 token payload (如有) 填入
-      shipNameInput.value = currentUser.name || '';
-      // TODO: phone/address could be stored in users table and returned by /api/auth/me if desired
+      if (!currentUser || currentUser.role !== 'buyer') {
+        alert('此帳號無結帳權限');
+        localStorage.removeItem('token');
+        window.location.href='buyer_login.html';
+        return;
+      }
+
+      // ✅ [修正] 更新 Header 顯示名字
+      if(headerUserEl) headerUserEl.textContent = currentUser.name || currentUser.email;
+
+      // 填入預設收件資訊
+      shipNameInput.value  = currentUser.name || '';
+      shipPhoneInput.value = currentUser.phone || '';
+      shipAddrInput.value  = currentUser.address || '';
 
       await loadCartItems();
-    }catch(err){ console.error(err); alert('讀取使用者資料失敗：'+(err.message||err)); window.location.href='buyer_login.html'; }
+    }catch(err){
+      console.error(err);
+      alert('讀取使用者資料失敗：'+(err.message||err));
+      window.location.href='buyer_login.html';
+    }
   })();
 
-  // 讀取購物車 items 後端
+  function normalizeSellerId(row){
+    return row.sellerId ?? row.seller_id ?? row.sellerID ?? null;
+  }
+
   async function loadCartItems(){
     cartItems = [];
     cartBody.innerHTML = '';
     totalAmountEl.textContent = '0';
-    cartEmptyEl.style.display = 'none'; cartTableWrap.style.display = 'none';
+    cartEmptyEl.style.display = 'none';
+    cartTableWrap.style.display = 'none';
+
     try{
       const res = await fetch('/api/cart', { headers: getAuthHeader() });
-      if (!res.ok) { cartEmptyEl.style.display='block'; cartEmptyEl.textContent='載入購物車失敗'; return; }
+      if (!res.ok) {
+        cartEmptyEl.style.display='block';
+        // 若 api/cart 回傳 404 或 error，視為空購物車
+        return;
+      }
+
       const rows = await res.json();
-      if (!rows || rows.length===0) { cartEmptyEl.style.display='block'; return; }
+      if (!rows || rows.length===0) {
+        cartEmptyEl.style.display='block';
+        return;
+      }
+
       let total = 0;
+
       rows.forEach(r => {
-        const item = { id: r.productId, title: r.title || '未命名商品', price: +r.price || 0, qty: +r.qty || 1, image: r.image || '', sellerId: r.sellerId || null };
+        const sellerId = normalizeSellerId(r);
+        const item = {
+          id: r.productId ?? r.product_id ?? r.id,
+          title: r.title || '未命名商品',
+          price: +r.price || 0,
+          qty: +r.qty || 1,
+          image: r.image || '',
+          sellerId: sellerId
+        };
+
         cartItems.push(item);
-        const tr = document.createElement('tr'); const sub = item.price * item.qty; total += sub;
-        tr.innerHTML = `<td>${item.title}</td><td class="price">${item.price}</td><td class="qty">${item.qty}</td><td class="subtotal">${sub}</td>`;
+
+        const tr = document.createElement('tr');
+        const sub = item.price * item.qty;
+        total += sub;
+
+        tr.innerHTML = `
+          <td>${item.title}</td>
+          <td class="price">${item.price}</td>
+          <td class="qty">${item.qty}</td>
+          <td class="subtotal">${sub}</td>
+        `;
         cartBody.appendChild(tr);
       });
+
       totalAmountEl.textContent = total;
       cartTableWrap.style.display = 'block';
-    }catch(err){ console.error(err); cartEmptyEl.style.display='block'; cartEmptyEl.textContent='載入購物車時發生錯誤：'+(err.message||err); }
+
+    }catch(err){
+      console.error(err);
+      cartEmptyEl.style.display='block';
+      cartEmptyEl.textContent='載入購物車時發生錯誤：'+(err.message||err);
+    }
   }
 
-  // 送出訂單 -> 呼叫 POST /api/orders
   btnSubmitOrder.addEventListener('click', async () => {
-    msgEl.textContent = ''; msgEl.classList.remove('msg-ok');
+    msgEl.textContent = '';
+    msgEl.classList.remove('msg-ok');
+
     if (!currentUser) { alert('尚未確認登入狀態，請重新登入'); return; }
     if (!cartItems.length) { msgEl.textContent='購物車目前是空的，無法建立訂單。'; return; }
-    const shipName = shipNameInput.value.trim(); const shipPhone = shipPhoneInput.value.trim(); const shipAddr = shipAddrInput.value.trim();
-    if (!shipName || !shipPhone || !shipAddr) { msgEl.textContent='請完整填寫收件人姓名、電話與地址。'; return; }
-    let total = 0; const sellerIdSet = new Set();
-    const orderItems = cartItems.map(it => { const sub = it.price * it.qty; total += sub; if (it.sellerId) sellerIdSet.add(it.sellerId); return { productId: it.id, title: it.title, price: it.price, qty: it.qty, image: it.image, sellerId: it.sellerId || null }; });
+
+    const shipName  = shipNameInput.value.trim();
+    const shipPhone = shipPhoneInput.value.trim();
+    const shipAddr  = shipAddrInput.value.trim();
+    if (!shipName || !shipPhone || !shipAddr) {
+      msgEl.textContent='請完整填寫收件人姓名、電話與地址。';
+      return;
+    }
+
+    let total = 0;
+    const orderItems = cartItems.map(it => {
+      const sub = it.price * it.qty;
+      total += sub;
+      return {
+        productId: it.id,
+        title: it.title,
+        price: it.price,
+        qty: it.qty,
+        image: it.image,
+        sellerId: it.sellerId || null
+      };
+    });
+
     try{
-      btnSubmitOrder.disabled = true; btnSubmitOrder.textContent = '訂單建立中...';
-      const payload = { items: orderItems, totalAmount: total, shipName, shipPhone, shipAddress: shipAddr };
-      const res = await fetch('/api/orders', { method: 'POST', headers: getAuthHeader(), body: JSON.stringify(payload) });
-      if (!res.ok) { const err = await res.json().catch(()=>null); throw new Error(err && err.error ? err.error : '建立訂單失敗'); }
-      // 清空後端購物車
+      btnSubmitOrder.disabled = true;
+      btnSubmitOrder.textContent = '訂單建立中...';
+
+      const payload = {
+        items: orderItems,
+        totalAmount: total,
+        shipName,
+        shipPhone,
+        shipAddress: shipAddr
+      };
+
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: getJsonAuthHeader(),
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(()=>null);
+        throw new Error(err && err.error ? err.error : '建立訂單失敗');
+      }
+
       await fetch('/api/cart/clear', { method: 'DELETE', headers: getAuthHeader() });
-      msgEl.classList.add('msg-ok'); msgEl.textContent = '訂單建立成功！感謝您的購買。';
-      setTimeout(()=> window.location.href='buyer_orders.html', 1500);
-    }catch(err){ console.error(err); msgEl.textContent = '建立訂單失敗：' + (err.message || err); }
-    finally { btnSubmitOrder.disabled = false; btnSubmitOrder.textContent = '送出訂單'; }
+
+      msgEl.classList.add('msg-ok');
+      msgEl.textContent = '訂單建立成功！感謝您的購買。';
+
+      setTimeout(()=> window.location.href='buyer_orders.html', 800);
+    }catch(err){
+      console.error(err);
+      msgEl.textContent = '建立訂單失敗：' + (err.message || err);
+    } finally {
+      btnSubmitOrder.disabled = false;
+      btnSubmitOrder.textContent = '送出訂單';
+    }
   });
 </script>
 </body>

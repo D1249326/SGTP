@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>SGTP - 賣家資料設定</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0; }
+    
+    /* Header (與新版 seller_home 一致) */
+    header {
+      background: #2c3e50; /* 深藍色 */
+      color: white;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .header-logo {
+      font-size: 20px;
+      font-weight: bold;
+      color: white;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .icon-btn {
+      color: white;
+      text-decoration: none;
+      font-size: 24px;
+      cursor: pointer;
+      position: relative;
+    }
+    .icon-btn:hover { opacity: 0.8; }
+
+    /* 下拉選單 */
+    .user-menu {
+      position: relative;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      height: 60px;
+    }
+    .user-name { font-size: 16px; font-weight: bold; margin-right: 5px; }
+    .user-avatar {
+      width: 32px; height: 32px;
+      background-color: #bdc3c7;
+      border-radius: 50%;
+      display: flex; justify-content: center; align-items: center;
+      font-size: 14px; color: #2c3e50;
+      margin-right: 8px;
+    }
+    .dropdown-content {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background-color: white;
+      min-width: 150px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      border-radius: 0 0 4px 4px;
+      overflow: hidden;
+      z-index: 1000;
+    }
+    .dropdown-content a {
+      color: #333;
+      padding: 12px 16px;
+      text-decoration: none;
+      display: block;
+      font-size: 14px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .dropdown-content a:hover { background-color: #f5f5f5; color: #2c3e50; }
+    .user-menu:hover .dropdown-content { display: block; }
+
+    /* 內容區 */
+    .container { max-width: 800px; margin: 40px auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+    h2 { margin-top: 0; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 25px; }
+
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; margin-bottom: 8px; font-weight: bold; color: #555; }
+    .form-group input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 15px; box-sizing: border-box; }
+    .form-group input:disabled { background: #f9f9f9; color: #888; cursor: not-allowed; }
+
+    .btn-row { margin-top: 30px; display: flex; gap: 15px; }
+    .btn { padding: 10px 24px; border: none; border-radius: 4px; font-size: 15px; cursor: pointer; transition: background 0.2s; }
+    .btn-primary { background: #2c3e50; color: white; }
+    .btn-primary:hover { background: #34495e; }
+    .btn-secondary { background: #bdc3c7; color: #2c3e50; }
+    .btn-secondary:hover { background: #aab7b8; }
+
+    .msg { margin-top: 15px; padding: 10px; border-radius: 4px; font-size: 14px; display: none; }
+    .msg.error { background: #fdecea; color: #c0392b; border: 1px solid #f5b7b1; }
+    .msg.success { background: #eafaf1; color: #27ae60; border: 1px solid #a9dfbf; }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="seller_home.html" class="header-logo">SGTP-賣家中心</a>
+  <div class="header-right">
+    <a href="seller_chats.html" class="icon-btn" title="聊聊">💬</a>
+    <div class="user-menu">
+      <div class="user-avatar">S</div>
+      <span class="user-name" id="headerUserName">賣家</span>
+      <span>▼</span>
+      <div class="dropdown-content">
+        <a href="seller_profile.html">我的資料</a>
+        <a href="#" id="headerLogoutBtn">登出</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+  <h2>賣家資料設定</h2>
+  
+  <div class="form-group">
+    <label>賣場名稱 (姓名)</label>
+    <input type="text" id="editName" />
+  </div>
+
+  <div class="form-group">
+    <label>Email (帳號)</label>
+    <input type="email" id="editEmail" />
+  </div>
+
+  <div class="form-group">
+    <label>聯絡電話</label>
+    <input type="text" id="editPhone" placeholder="09xxxxxxxx" />
+  </div>
+
+  <div class="form-group">
+    <label>聯絡地址</label>
+    <input type="text" id="editAddress" />
+  </div>
+
+  <div class="form-group" style="margin-top: 30px; border-top: 1px dashed #ddd; padding-top: 20px;">
+    <label>變更密碼 <span style="font-weight:normal; color:#888; font-size:13px;">(若不修改請留空)</span></label>
+    <input type="password" id="newPassword" placeholder="輸入新密碼" />
+  </div>
+
+  <div class="form-group">
+    <label>目前密碼 <span style="color:red">*</span> <span style="font-weight:normal; color:#888; font-size:13px;">(修改資料需驗證)</span></label>
+    <input type="password" id="currentPassword" placeholder="請輸入目前密碼以確認身分" />
+  </div>
+
+  <div class="btn-row">
+    <button id="btnSave" class="btn btn-primary">儲存變更</button>
+    <button onclick="location.href='seller_home.html'" class="btn btn-secondary">取消</button>
+  </div>
+
+  <div id="msgBox" class="msg"></div>
+</div>
+
+<script>
+  const headerUserName = document.getElementById('headerUserName');
+  const headerLogoutBtn = document.getElementById('headerLogoutBtn');
+  const editName = document.getElementById('editName');
+  const editEmail = document.getElementById('editEmail');
+  const editPhone = document.getElementById('editPhone');
+  const editAddress = document.getElementById('editAddress');
+  const newPassword = document.getElementById('newPassword');
+  const currentPassword = document.getElementById('currentPassword');
+  const btnSave = document.getElementById('btnSave');
+  const msgBox = document.getElementById('msgBox');
+
+  let currentUser = null;
+
+  function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{ 'Authorization':'Bearer '+t, 'Content-Type':'application/json' } : { 'Content-Type':'application/json' }; }
+
+  // 初始化
+  (async function(){
+    try{
+      const res = await fetch('/api/auth/me', { headers: getAuthHeader() });
+      if(!res.ok) { alert('請先登入'); window.location.href='seller_login.html'; return; }
+      
+      const user = await res.json();
+      if(user.role !== 'seller') { alert('權限不足'); window.location.href='index.html'; return; }
+      
+      currentUser = user;
+      headerUserName.textContent = user.name || '賣家';
+      
+      // 填入表單
+      editName.value = user.name || '';
+      editEmail.value = user.email || '';
+      editPhone.value = user.phone || '';
+      editAddress.value = user.address || '';
+
+    }catch(e){ console.error(e); }
+  })();
+
+  // 登出
+  headerLogoutBtn.addEventListener('click', (e)=>{
+    e.preventDefault();
+    localStorage.removeItem('token');
+    window.location.href='seller_login.html';
+  });
+
+  // 儲存
+  btnSave.addEventListener('click', async () => {
+    msgBox.style.display = 'none';
+    msgBox.className = 'msg';
+
+    const pw = currentPassword.value;
+    if(!pw) {
+      showMsg('error', '請輸入目前密碼以確認修改');
+      return;
+    }
+
+    const payload = {
+      name: editName.value.trim(),
+      email: editEmail.value.trim(),
+      phone: editPhone.value.trim(),
+      address: editAddress.value.trim(),
+      currentPassword: pw
+    };
+
+    if(newPassword.value) {
+      if(newPassword.value.length < 6) {
+        showMsg('error', '新密碼長度至少需 6 碼');
+        return;
+      }
+      // 因為後端邏輯是：改Email才強制要密碼，改其他不用。但為了安全我們統一送 currentPassword
+      // 如果要改密碼，其實後端目前的 /api/users/me 邏輯只支援改基本資料，沒寫改密碼邏輯
+      // **重要**：你的後端 /api/users/me 目前看起來只處理 name/email/phone/address 更新
+      // 如果要改密碼，後端需要加邏輯。這邊先假設後端會支援，或者你需要去改後端。
+      // 暫時先不送新密碼，因為後端沒寫。
+      alert('提醒：目前的後端 API 尚未實作修改密碼功能，僅更新基本資料。');
+    }
+
+    try {
+      const res = await fetch('/api/users/me', {
+        method: 'PUT',
+        headers: getAuthHeader(),
+        body: JSON.stringify(payload)
+      });
+
+      if(!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || '更新失敗');
+      }
+
+      const updated = await res.json();
+      headerUserName.textContent = updated.name;
+      currentPassword.value = ''; // 清空密碼欄
+      showMsg('success', '資料更新成功！');
+      
+    } catch(e) {
+      showMsg('error', e.message);
+    }
+  });
+
+  function showMsg(type, text) {
+    msgBox.textContent = text;
+    msgBox.className = `msg ${type}`;
+    msgBox.style.display = 'block';
+  }
+</script>
+
+</body>
+</html>

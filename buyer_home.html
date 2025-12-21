@@ -4,204 +4,205 @@
   <meta charset="UTF-8" />
   <title>SGTP - 買家首頁</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f7f7f7;
-      margin: 0;
-      padding: 0;
-    }
-    header {
-      background: #1f354d;
-      color: white;
-      padding: 20px 40px;
-      font-size: 24px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    header .right button {
-      margin-left: 10px;
-    }
-    .btn {
-      padding: 8px 14px;
-      border: none;
-      border-radius: 4px;
-      font-size: 14px;
-      cursor: pointer;
-    }
-    .btn-light {
-      background: #ffffff;
-      color: #1f354d;
-    }
-    .btn-danger {
-      background: #c0392b;
-      color: white;
-    }
-    .btn-primary {
-      background: #1f354d;
-      color: white;
-    }
-    .btn-secondary {
-      background: #bdc3c7;
-      color: #2c3e50;
-    }
-    .container {
-      max-width: 900px;
-      margin: 40px auto;
-      background: white;
-      padding: 30px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    }
+    /* ========== Header 樣式 (保持不變) ========== */
+    body { font-family: Arial, sans-serif; background: #f7f7f7; margin: 0; padding: 0; }
+    header { background: #1f354d; color: white; padding: 10px 24px; display: flex; align-items: center; gap: 20px; position: sticky; top: 0; z-index: 1000; height: 50px; }
+    .logo { font-size: 28px; font-weight: bold; color: white; text-decoration: none; white-space: nowrap; margin-right: 10px; }
+    .header-search { flex: 1; max-width: 600px; margin: 0 auto; display: flex; position: relative; }
+    .header-search input { width: 100%; padding: 8px 36px 8px 12px; border-radius: 4px; border: none; font-size: 14px; outline: none; }
+    .header-right { display: flex; align-items: center; gap: 20px; margin-left: auto; }
+    .icon-btn { color: white; text-decoration: none; font-size: 24px; transition: opacity 0.2s; cursor: pointer; display: flex; align-items: center; }
+    .icon-btn:hover { opacity: 0.8; }
+    .user-menu { position: relative; cursor: pointer; display: flex; align-items: center; height: 50px; padding-left: 8px; }
+    .user-name { font-size: 16px; font-weight: bold; color: white; }
+    .user-name::after { content: ' ▼'; font-size: 10px; margin-left: 6px; vertical-align: middle; }
+    .dropdown-content { display: none; position: absolute; top: 100%; right: 0; background-color: white; min-width: 140px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 0 0 4px 4px; overflow: hidden; z-index: 1001; }
+    .dropdown-content a { color: #333; padding: 12px 16px; text-decoration: none; display: block; font-size: 14px; border-bottom: 1px solid #f0f0f0; }
+    .dropdown-content a:hover { background-color: #f5f5f5; color: #1f354d; }
+    .user-menu:hover .dropdown-content { display: block; }
+
+    /* ========== 頁面內容 ========== */
+    .container { max-width: 900px; margin: 40px auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
     h2 { margin-top: 0; }
-    .info-row {
-      margin: 8px 0;
-    }
-    .label {
-      display: inline-block;
-      width: 80px;
-      color: #555;
-    }
-    .edit-section {
-      margin-top: 20px;
-      padding-top: 15px;
-      border-top: 1px solid #eee;
-    }
-    .edit-row {
-      margin: 8px 0;
-    }
-    .edit-row label {
-      display: inline-block;
-      width: 80px;
-      color: #555;
-    }
-    .edit-row input {
-      width: 260px;
-      padding: 6px 8px;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-      font-size: 14px;
-    }
-    .msg {
-      margin-top: 10px;
-      font-size: 14px;
-      color: #c0392b;
-    }
-    .msg-ok {
-      color: #27ae60;
-    }
+    .btn { padding: 8px 14px; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; }
+    .btn-light { background: #ffffff; color: #1f354d; border: 1px solid #ccc; }
+    .btn-primary { background: #1f354d; color: white; }
+    .btn-secondary { background: #bdc3c7; color: #2c3e50; }
+    .info-row, .edit-row { margin: 8px 0; }
+    .label, .edit-row label { display: inline-block; width: 80px; color: #555; }
+    .edit-section { margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; }
+    .edit-row input { width: 260px; padding: 6px 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; }
+    .msg { margin-top: 10px; font-size: 14px; color: #c0392b; }
+    .msg-ok { color: #27ae60; }
+
+    /* ✅ [新增] 地址選擇器樣式 */
+    .address-group { display: inline-flex; gap: 8px; align-items: center; }
+    .address-group select { padding: 6px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; }
+    .address-group input { width: 160px; } /* 縮短街道輸入框以適應同一行 */
   </style>
 </head>
 <body>
+
   <header>
-    <div>SGTP 二手商品平台 - 買家首頁</div>
-    <div class="right">
-      <!-- ⭐ 這顆改成回到 buyer_shop.html -->
-      <button id="btnToShop" class="btn btn-light" onclick="location.href='buyer_shop.html'">
-        前往商品列表
-      </button>
-      <button id="btnLogout" class="btn btn-danger">
-        登出
-      </button>
+    <a href="buyer_shop.html" class="logo">SGTP</a>
+    
+    <div class="header-search">
+      <input id="navSearch" type="text" placeholder="搜尋商品名稱..." />
+    </div>
+
+    <div class="header-right">
+      <a href="buyer_cart.html" class="icon-btn" title="購物車">🛒</a>
+      <a href="buyer_chats.html" class="icon-btn" title="聊天室">💬</a>
+      <div class="user-menu">
+        <span class="user-name" id="headerUser">載入中...</span>
+        <div class="dropdown-content">
+          <a href="buyer_home.html">我的資料</a>
+          <a href="buyer_orders.html">訂單查詢</a>
+          <a href="#" id="headerLogoutBtn">登出</a>
+        </div>
+      </div>
     </div>
   </header>
 
   <div class="container">
     <h2 id="welcome">歡迎，買家！</h2>
-
-    <!-- 顯示用 -->
     <div id="displaySection">
-      <div class="info-row">
-        <span class="label">姓名：</span>
-        <span id="buyerName">-</span>
-      </div>
-      <div class="info-row">
-        <span class="label">Email：</span>
-        <span id="buyerEmail">-</span>
-      </div>
-      <div class="info-row">
-        <span class="label">電話：</span>
-        <span id="buyerPhone">-</span>
-      </div>
-      <div class="info-row">
-        <span class="label">地址：</span>
-        <span id="buyerAddress">-</span>
-      </div>
-      <div class="info-row">
-        <span class="label">角色：</span>
-        <span id="buyerRole">-</span>
-      </div>
-
-      <button id="btnEdit" class="btn btn-light" style="margin-top:16px;">
-        ✏ 編輯資料
-      </button>
+      <div class="info-row"><span class="label">姓名：</span><span id="buyerName">-</span></div>
+      <div class="info-row"><span class="label">Email：</span><span id="buyerEmail">-</span></div>
+      <div class="info-row"><span class="label">電話：</span><span id="buyerPhone">-</span></div>
+      <div class="info-row"><span class="label">地址：</span><span id="buyerAddress">-</span></div>
+      <div class="info-row"><span class="label">角色：</span><span id="buyerRole">-</span></div>
+      <button id="btnEdit" class="btn btn-light" style="margin-top:16px;">✏ 編輯資料</button>
     </div>
 
-    <!-- 編輯區 -->
     <div id="editSection" class="edit-section" style="display:none;">
       <h3>編輯個人資料</h3>
+      <div class="edit-row"><label>姓名：</label><input id="editName" type="text" /></div>
+      <div class="edit-row"><label>Email：</label><input id="editEmail" type="email" /></div>
+      
+      <div class="edit-row">
+        <label>電話：</label>
+        <input id="editPhone" type="text" placeholder="請輸入 10 碼數字 (如 0912345678)" maxlength="10" />
+      </div>
 
       <div class="edit-row">
-        <label for="editName">姓名：</label>
-        <input id="editName" type="text" />
-      </div>
-      <div class="edit-row">
-        <label for="editEmail">Email：</label>
-        <input id="editEmail" type="email" />
-      </div>
-      <div class="edit-row">
-        <label for="editPhone">電話：</label>
-        <input id="editPhone" type="text" />
-      </div>
-      <div class="edit-row">
-        <label for="editAddress">地址：</label>
-        <input id="editAddress" type="text" />
+        <label>地址：</label>
+        <div class="address-group">
+          <select id="citySelect"><option value="">縣市</option></select>
+          <select id="distSelect"><option value="">地區</option></select>
+          <input id="streetInput" type="text" placeholder="路名、巷弄、門牌號碼" />
+        </div>
       </div>
 
       <hr style="margin:14px 0;" />
-
-      <div class="edit-row">
-        <label for="editPassword">密碼：</label>
-        <input id="editPassword" type="password" placeholder="請輸入目前密碼（驗證用）" />
-      </div>
-
+      <div class="edit-row"><label>密碼：</label><input id="editPassword" type="password" placeholder="請輸入目前密碼（驗證用）" /></div>
       <div style="margin-top:12px;">
         <button id="btnSave" class="btn btn-primary">儲存變更</button>
         <button id="btnCancel" class="btn btn-secondary" style="margin-left:8px;">取消</button>
       </div>
-
       <div id="msg" class="msg"></div>
     </div>
-
-    <hr />
-
-    <p>（此頁為買家個人資料中心，可編輯基本資料。未來可加上：訂單查詢、購物車快捷入口等。）</p>
   </div>
 
   <script>
-    const buyerName    = document.getElementById('buyerName');
-    const buyerEmail   = document.getElementById('buyerEmail');
-    const buyerPhone   = document.getElementById('buyerPhone');
+    // ✅ [新增] 台灣縣市區域資料
+    const TAIWAN_AREAS = {
+      "台北市": ["中正區","大同區","中山區","松山區","大安區","萬華區","信義區","士林區","北投區","內湖區","南港區","文山區"],
+      "新北市": ["板橋區","新莊區","中和區","永和區","土城區","樹林區","三峽區","鶯歌區","三重區","蘆洲區","五股區","泰山區","林口區","八里區","淡水區","三芝區","石門區","金山區","萬里區","汐止區","瑞芳區","貢寮區","平溪區","雙溪區","新店區","深坑區","石碇區","坪林區","烏來區"],
+      "基隆市": ["仁愛區","信義區","中正區","中山區","安樂區","暖暖區","七堵區"],
+      "桃園市": ["桃園區","中壢區","大溪區","楊梅區","蘆竹區","大園區","龜山區","八德區","龍潭區","平鎮區","新屋區","觀音區","復興區"],
+      "新竹市": ["東區","北區","香山區"],
+      "新竹縣": ["竹北市","竹東鎮","新埔鎮","關西鎮","湖口鄉","新豐鄉","芎林鄉","橫山鄉","北埔鄉","寶山鄉","峨眉鄉","尖石鄉","五峰鄉"],
+      "苗栗縣": ["苗栗市","頭份市","苑裡鎮","通霄鎮","竹南鎮","後龍鎮","卓蘭鎮","大湖鄉","公館鄉","銅鑼鄉","南庄鄉","頭屋鄉","三義鄉","西湖鄉","造橋鄉","三灣鄉","獅潭鄉","泰安鄉"],
+      "台中市": ["中區","東區","南區","西區","北區","北屯區","西屯區","南屯區","太平區","大里區","霧峰區","烏日區","豐原區","后里區","石岡區","東勢區","和平區","新社區","潭子區","大雅區","神岡區","大肚區","沙鹿區","龍井區","梧棲區","清水區","大甲區","外埔區","大安區"],
+      "彰化縣": ["彰化市","員林市","鹿港鎮","和美鎮","北斗鎮","溪湖鎮","田中鎮","二林鎮","線西鄉","伸港鄉","福興鄉","秀水鄉","花壇鄉","芬園鄉","大村鄉","埔鹽鄉","埔心鄉","永靖鄉","社頭鄉","二水鄉","田尾鄉","埤頭鄉","芳苑鄉","大城鄉","竹塘鄉","溪州鄉"],
+      "南投縣": ["南投市","埔里鎮","草屯鎮","竹山鎮","集集鎮","名間鄉","鹿谷鄉","中寮鄉","魚池鄉","國姓鄉","水里鄉","信義鄉","仁愛鄉"],
+      "雲林縣": ["斗六市","斗南鎮","虎尾鎮","西螺鎮","土庫鎮","北港鎮","古坑鄉","大埤鄉","莿桐鄉","林內鄉","二崙鄉","崙背鄉","麥寮鄉","東勢鄉","褒忠鄉","臺西鄉","元長鄉","四湖鄉","口湖鄉","水林鄉"],
+      "嘉義市": ["東區","西區"],
+      "嘉義縣": ["太保市","朴子市","布袋鎮","大林鎮","民雄鄉","溪口鄉","新港鄉","六腳鄉","東石鄉","義竹鄉","鹿草鄉","水上鄉","中埔鄉","竹崎鄉","梅山鄉","番路鄉","大埔鄉","阿里山鄉"],
+      "台南市": ["中西區","東區","南區","北區","安平區","安南區","永康區","歸仁區","新化區","左鎮區","玉井區","楠西區","南化區","仁德區","關廟區","龍崎區","官田區","麻豆區","佳里區","西港區","七股區","將軍區","學甲區","北門區","新營區","後壁區","白河區","東山區","六甲區","下營區","柳營區","鹽水區","善化區","大內區","山上區","新市區","安定區"],
+      "高雄市": ["楠梓區","左營區","鼓山區","三民區","鹽埕區","前金區","新興區","苓雅區","前鎮區","旗津區","小港區","鳳山區","林園區","大寮區","大樹區","大社區","仁武區","鳥松區","岡山區","橋頭區","燕巢區","田寮區","阿蓮區","路竹區","湖內區","茄萣區","永安區","彌陀區","梓官區","旗山區","美濃區","六龜區","甲仙區","杉林區","內門區","茂林區","桃源區","那瑪夏區"],
+      "屏東縣": ["屏東市","潮州鎮","東港鎮","恆春鎮","萬丹鄉","長治鄉","麟洛鄉","九如鄉","里港鄉","鹽埔鄉","高樹鄉","萬巒鄉","內埔鄉","竹田鄉","新埤鄉","枋寮鄉","新園鄉","崁頂鄉","林邊鄉","南州鄉","佳冬鄉","琉球鄉","車城鄉","滿州鄉","枋山鄉","三地門鄉","霧台鄉","瑪家鄉","泰武鄉","來義鄉","春日鄉","獅子鄉","牡丹鄉"],
+      "宜蘭縣": ["宜蘭市","羅東鎮","蘇澳鎮","頭城鎮","礁溪鄉","壯圍鄉","員山鄉","冬山鄉","五結鄉","三星鄉","大同鄉","南澳鄉"],
+      "花蓮縣": ["花蓮市","鳳林鎮","玉里鎮","新城鄉","吉安鄉","壽豐鄉","光復鄉","豐濱鄉","瑞穗鄉","富里鄉","秀林鄉","萬榮鄉","卓溪鄉"],
+      "台東縣": ["台東市","成功鎮","關山鎮","卑南鄉","大武鄉","太麻里鄉","東河鄉","長濱鄉","鹿野鄉","池上鄉","綠島鄉","延平鄉","海端鄉","達仁鄉","金峰鄉","蘭嶼鄉"],
+      "澎湖縣": ["馬公市","湖西鄉","白沙鄉","西嶼鄉","望安鄉","七美鄉"],
+      "金門縣": ["金城鎮","金湖鎮","金沙鎮","金寧鄉","烈嶼鄉","烏坵鄉"],
+      "連江縣": ["南竿鄉","北竿鄉","莒光鄉","東引鄉"]
+    };
+
+    const headerUserEl = document.getElementById('headerUser');
+    const headerLogoutBtn = document.getElementById('headerLogoutBtn');
+    const navSearch = document.getElementById('navSearch');
+
+    // DOM 元素
+    const buyerName = document.getElementById('buyerName');
+    const buyerEmail = document.getElementById('buyerEmail');
+    const buyerPhone = document.getElementById('buyerPhone');
     const buyerAddress = document.getElementById('buyerAddress');
-    const buyerRole    = document.getElementById('buyerRole');
-    const welcome      = document.getElementById('welcome');
-
-    const btnLogout    = document.getElementById('btnLogout');
-    const btnEdit      = document.getElementById('btnEdit');
-
+    const buyerRole = document.getElementById('buyerRole');
+    const welcome = document.getElementById('welcome');
+    
+    const btnEdit = document.getElementById('btnEdit');
     const displaySection = document.getElementById('displaySection');
-    const editSection    = document.getElementById('editSection');
+    const editSection = document.getElementById('editSection');
+    
+    const editName = document.getElementById('editName');
+    const editEmail = document.getElementById('editEmail');
+    const editPhone = document.getElementById('editPhone');
+    const editPassword = document.getElementById('editPassword');
+    
+    // 地址相關 DOM
+    const citySelect = document.getElementById('citySelect');
+    const distSelect = document.getElementById('distSelect');
+    const streetInput = document.getElementById('streetInput');
 
-    const editName      = document.getElementById('editName');
-    const editEmail     = document.getElementById('editEmail');
-    const editPhone     = document.getElementById('editPhone');
-    const editAddress   = document.getElementById('editAddress');
-    const editPassword  = document.getElementById('editPassword');
-    const btnSave       = document.getElementById('btnSave');
-    const btnCancel     = document.getElementById('btnCancel');
-    const msgEl         = document.getElementById('msg');
-
+    const btnSave = document.getElementById('btnSave');
+    const btnCancel = document.getElementById('btnCancel');
+    const msgEl = document.getElementById('msg');
     let currentUser = null;
+
+    // 初始化縣市選單
+    function initAddressSelectors() {
+      // 填入縣市
+      for (let city in TAIWAN_AREAS) {
+        const opt = document.createElement('option');
+        opt.value = city;
+        opt.textContent = city;
+        citySelect.appendChild(opt);
+      }
+      
+      // 當縣市改變時，更新地區
+      citySelect.addEventListener('change', () => {
+        updateDistrictOptions(citySelect.value);
+      });
+    }
+
+    // 更新地區選單
+    function updateDistrictOptions(city, selectedDist = '') {
+      distSelect.innerHTML = '<option value="">地區</option>'; // 清空
+      if (city && TAIWAN_AREAS[city]) {
+        TAIWAN_AREAS[city].forEach(dist => {
+          const opt = document.createElement('option');
+          opt.value = dist;
+          opt.textContent = dist;
+          if (dist === selectedDist) opt.selected = true;
+          distSelect.appendChild(opt);
+        });
+      }
+    }
+
+    // 初始化頁面
+    initAddressSelectors();
+
+    if(navSearch){
+      navSearch.addEventListener('keypress', (e)=>{
+        if(e.key === 'Enter'){
+          const val = navSearch.value.trim();
+          if(val) window.location.href = 'buyer_shop.html?q=' + encodeURIComponent(val);
+        }
+      });
+    }
 
     function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{ 'Authorization':'Bearer '+t, 'Content-Type':'application/json' } : { 'Content-Type':'application/json' }; }
 
@@ -210,54 +211,143 @@
         const res = await fetch('/api/auth/me', { headers: getAuthHeader() });
         if (!res.ok) { alert('請先登入買家帳號'); window.location.href='buyer_login.html'; return; }
         currentUser = await res.json();
-        if (!currentUser || currentUser.role !== 'buyer') { alert('此帳號角色不是買家，請用買家帳號登入'); localStorage.removeItem('token'); window.location.href='buyer_login.html'; return; }
-        buyerName.textContent    = currentUser.name || '(未填)';
-        buyerEmail.textContent   = currentUser.email || '-';
-        buyerPhone.textContent   = currentUser.phone || '(未填)';
+        if (currentUser.role !== 'buyer') { alert('請用買家帳號登入'); localStorage.removeItem('token'); window.location.href='buyer_login.html'; return; }
+        
+        if(headerUserEl) headerUserEl.textContent = currentUser.name || currentUser.email;
+        buyerName.textContent = currentUser.name || '(未填)';
+        buyerEmail.textContent = currentUser.email || '-';
+        buyerPhone.textContent = currentUser.phone || '(未填)';
         buyerAddress.textContent = currentUser.address || '(未填)';
-        buyerRole.textContent    = currentUser.role || '(未設定)';
+        buyerRole.textContent = currentUser.role || '(未設定)';
         welcome.textContent = '歡迎，' + (currentUser.name || currentUser.email || '買家') + '！';
-      }catch(err){ console.error(err); alert('讀取使用者資料失敗：'+(err.message||err)); window.location.href='buyer_login.html'; }
+      }catch(err){ console.error(err); alert('讀取資料失敗'); window.location.href='buyer_login.html'; }
     })();
 
-    // 打開編輯模式
+    if(headerLogoutBtn) headerLogoutBtn.addEventListener('click', (e)=>{ e.preventDefault(); localStorage.removeItem('token'); alert('已登出'); window.location.href='buyer_login.html'; });
+
+    // 點擊編輯
     btnEdit.addEventListener('click', ()=>{
       if (!currentUser) return;
       msgEl.textContent = ''; msgEl.classList.remove('msg-ok');
-      editName.value = currentUser.name || currentUser.email || '';
-      editEmail.value = currentUser.email || '';
-      editPhone.value = currentUser.phone || '';
-      editAddress.value = currentUser.address || '';
+      
+      // 填入基本資料
+      editName.value = currentUser.name || ''; 
+      editEmail.value = currentUser.email || ''; 
+      editPhone.value = currentUser.phone || ''; 
       editPassword.value = '';
-      displaySection.style.display = 'none'; editSection.style.display = 'block';
+
+      // ✅ [新增] 嘗試解析並填入地址
+      const fullAddress = currentUser.address || '';
+      let foundCity = '';
+      let foundDist = '';
+      let remaining = fullAddress;
+
+      // 1. 找縣市
+      for (let city in TAIWAN_AREAS) {
+        if (fullAddress.startsWith(city)) {
+          foundCity = city;
+          remaining = fullAddress.substring(city.length);
+          break;
+        }
+      }
+
+      // 2. 找地區 (如果有找到縣市)
+      if (foundCity) {
+        citySelect.value = foundCity;
+        updateDistrictOptions(foundCity); // 先更新下拉選單
+        
+        for (let dist of TAIWAN_AREAS[foundCity]) {
+          if (remaining.startsWith(dist)) {
+            foundDist = dist;
+            remaining = remaining.substring(dist.length);
+            break;
+          }
+        }
+        
+        if (foundDist) {
+          distSelect.value = foundDist;
+          streetInput.value = remaining; // 剩下的就是街道
+        } else {
+          streetInput.value = remaining;
+        }
+      } else {
+        // 解析失敗或沒有縣市，重置並填入全部
+        citySelect.value = '';
+        updateDistrictOptions('');
+        streetInput.value = fullAddress;
+      }
+
+      displaySection.style.display = 'none'; 
+      editSection.style.display = 'block';
     });
 
-    btnCancel.addEventListener('click', ()=>{ editSection.style.display='none'; displaySection.style.display='block'; msgEl.textContent=''; msgEl.classList.remove('msg-ok'); });
+    btnCancel.addEventListener('click', ()=>{ editSection.style.display='none'; displaySection.style.display='block'; });
 
+    // 點擊儲存
     btnSave.addEventListener('click', async ()=>{
       msgEl.textContent = ''; msgEl.classList.remove('msg-ok');
-      if (!currentUser) { alert('尚未確認登入狀態，請重新登入。'); return; }
-      const newName = editName.value.trim(); const newEmail = editEmail.value.trim(); const newPhone = editPhone.value.trim(); const newAddress = editAddress.value.trim(); const password = editPassword.value;
-      if (!newName || !newEmail) { msgEl.textContent = '姓名與 Email 不可空白。'; return; }
-      try{
-        btnSave.disabled = true; btnSave.textContent = '儲存中...';
-        const payload = { name: newName, email: newEmail, phone: newPhone, address: newAddress };
-        if (newEmail !== currentUser.email) {
-          // require current password
-          if (!password) { msgEl.textContent = '更改 Email 需要輸入目前密碼以驗證身分。'; btnSave.disabled=false; btnSave.textContent='儲存變更'; return; }
-          payload.currentPassword = password;
-        }
-        const res = await fetch('/api/users/me', { method: 'PUT', headers: getAuthHeader(), body: JSON.stringify(payload) });
-        if (!res.ok) { const err = await res.json().catch(()=>null); throw new Error(err && err.error ? err.error : ('Status ' + res.status)); }
-        const updated = await res.json(); currentUser = updated;
-        buyerName.textContent = updated.name || '(未填)'; buyerEmail.textContent = updated.email; buyerPhone.textContent = updated.phone || '(未填)'; buyerAddress.textContent = updated.address || '(未填)'; welcome.textContent = '歡迎，' + (updated.name || updated.email) + '！';
-        msgEl.classList.add('msg-ok'); msgEl.textContent = '資料已成功更新！';
-        setTimeout(()=>{ editSection.style.display='none'; displaySection.style.display='block'; msgEl.textContent=''; msgEl.classList.remove('msg-ok'); }, 1000);
-      }catch(err){ console.error(err); msgEl.textContent = '更新失敗：' + (err.message||err); } finally { btnSave.disabled=false; btnSave.textContent='儲存變更'; }
-    });
 
-    // 登出
-    btnLogout.addEventListener('click', ()=>{ localStorage.removeItem('token'); alert('已登出'); window.location.href='buyer_login.html'; });
+      // ✅ [新增] 電話驗證：必須是 10 碼數字
+      const phoneVal = editPhone.value.trim();
+      const phoneRegex = /^\d{10}$/;
+      if (phoneVal && !phoneRegex.test(phoneVal)) {
+        msgEl.textContent = '電話格式錯誤：必須為 10 碼數字 (例如 0912345678)';
+        return;
+      }
+
+      // ✅ [新增] 地址合併
+      let finalAddress = '';
+      const city = citySelect.value;
+      const dist = distSelect.value;
+      const street = streetInput.value.trim();
+      
+      if (city || dist || street) {
+        // 如果有填寫任何一部分，就必須選縣市跟地區 (或是你可以根據需求放寬)
+        if (!city || !dist) {
+          msgEl.textContent = '請完整選擇縣市與地區';
+          return;
+        }
+        if (!street) {
+            msgEl.textContent = '請輸入詳細路名與門牌';
+            return;
+        }
+        finalAddress = city + dist + street;
+      }
+
+      const payload = { 
+        name: editName.value.trim(), 
+        email: editEmail.value.trim(), 
+        phone: phoneVal, 
+        address: finalAddress 
+      };
+
+      if(payload.email !== currentUser.email) { 
+        if(!editPassword.value) { msgEl.textContent='更改Email需輸入密碼'; return; } 
+        payload.currentPassword = editPassword.value; 
+      }
+      
+      try{
+        const res = await fetch('/api/users/me', { method: 'PUT', headers: getAuthHeader(), body: JSON.stringify(payload) });
+        
+        // 處理特定錯誤
+        if(!res.ok) {
+           const errJson = await res.json().catch(()=>({}));
+           throw new Error(errJson.error || '更新失敗');
+        }
+
+        const updated = await res.json(); currentUser = updated;
+        if(headerUserEl) headerUserEl.textContent = updated.name || updated.email;
+        buyerName.textContent = updated.name; 
+        buyerEmail.textContent = updated.email; 
+        buyerPhone.textContent = updated.phone; 
+        buyerAddress.textContent = updated.address;
+        
+        msgEl.classList.add('msg-ok'); msgEl.textContent='更新成功';
+        setTimeout(()=>{ editSection.style.display='none'; displaySection.style.display='block'; }, 1000);
+      }catch(e){ 
+        msgEl.textContent = '更新失敗：' + e.message; 
+      }
+    });
   </script>
 </body>
 </html>

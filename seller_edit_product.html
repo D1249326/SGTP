@@ -5,21 +5,94 @@
   <title>SGTP - 編輯商品</title>
   <style>
     body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f7f7f7; }
-    header { background:#1f354d; color:white; padding:18px 32px; font-size:22px; display:flex; justify-content:space-between; align-items:center; }
-    .user-info { font-size:14px; }
-    .btn { padding:6px 12px; border-radius:4px; border:none; cursor:pointer; font-size:14px; margin-left:8px; }
-    .btn-light { background:#ffffff; color:#1f354d; }
-    .btn-danger { background:#c0392b; color:white; }
+    /* Header */
+    header {
+      background: #2c3e50; /* 深藍色 */
+      color: white;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .header-logo {
+      font-size: 20px;
+      font-weight: bold;
+      color: white;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .icon-btn {
+      color: white;
+      text-decoration: none;
+      font-size: 24px;
+      cursor: pointer;
+      position: relative;
+    }
+    .icon-btn:hover { opacity: 0.8; }
+
+    /* 下拉選單 */
+    .user-menu {
+      position: relative;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      height: 60px;
+    }
+    .user-name { font-size: 16px; font-weight: bold; margin-right: 5px; }
+    .user-avatar {
+      width: 32px; height: 32px;
+      background-color: #bdc3c7;
+      border-radius: 50%;
+      display: flex; justify-content: center; align-items: center;
+      font-size: 14px; color: #2c3e50;
+      margin-right: 8px;
+    }
+    .dropdown-content {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background-color: white;
+      min-width: 150px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      border-radius: 0 0 4px 4px;
+      overflow: hidden;
+      z-index: 1000;
+    }
+    .dropdown-content a {
+      color: #333;
+      padding: 12px 16px;
+      text-decoration: none;
+      display: block;
+      font-size: 14px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .dropdown-content a:hover { background-color: #f5f5f5; color: #2c3e50; }
+    .user-menu:hover .dropdown-content { display: block; }
+    
     .container { max-width:600px; margin:30px auto; background:white; padding:24px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.15); }
     label { display:block; margin-top:12px; font-size:14px; }
     input, textarea, select { width:100%; padding:8px; margin-top:4px; box-sizing:border-box; border-radius:4px; border:1px solid #ccc; font-family:inherit; }
     textarea { min-height:90px; resize:vertical; }
     .main-btn { margin-top:18px; width:100%; padding:10px; background:#1f354d; color:white; border:none; border-radius:4px; font-size:16px; cursor:pointer; }
     .sub-btn { margin-top:10px; width:100%; padding:10px; border:none; border-radius:4px; font-size:14px; cursor:pointer; }
+    .btn-danger { background:#c0392b; color:white; }
+    .btn-danger:hover { background:#a93226; }
+    
     .msg-error { margin-top:10px; color:#c0392b; font-size:14px; }
     .msg-ok    { margin-top:10px; color:#27ae60; font-size:14px; }
     .back-link { margin-top:12px; font-size:14px; }
     .back-link a { color:#1f354d; text-decoration:none; }
+    
     /* 圖片預覽區 */
     .img-preview-wrap { margin-top:8px; padding:8px; background:#fafafa; border:1px solid #eee; border-radius:4px; }
     .img-preview-label { font-size:12px; color:#777; margin-bottom:6px; }
@@ -32,11 +105,18 @@
 </head>
 <body>
 <header>
-  <div>SGTP 二手商品平台 - 編輯商品</div>
-  <div class="user-info">
-    <span id="userName">賣家</span>
-    <button class="btn btn-light" onclick="location.href='seller_home.html'">回賣家後台</button>
-    <button id="btnLogout" class="btn btn-danger">登出</button>
+  <a href="seller_home.html" class="header-logo">SGTP-賣家中心</a>
+  <div class="header-right">
+    <a href="seller_chats.html" class="icon-btn" title="聊聊">💬</a>
+    <div class="user-menu">
+      <div class="user-avatar">S</div>
+      <span class="user-name" id="headerUserName">賣家</span>
+      <span>▼</span>
+      <div class="dropdown-content">
+        <a href="seller_profile.html">我的資料</a>
+        <a href="#" id="headerLogoutBtn">登出</a>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -50,7 +130,6 @@
     <label>商品名稱</label>
     <input id="prodTitle" type="text" />
 
-    <!-- ⭐ 新增：商品分類 -->
     <label>商品分類</label>
     <select id="prodCategory">
       <option value="">請選擇分類</option>
@@ -70,13 +149,14 @@
 
     <label>商品描述（可選）</label>
     <textarea id="prodDesc"></textarea>
+    
+    <label>商品圖片（可多張）</label>
+    <input type="file" id="imageFiles" accept="image/*" multiple />
 
-    <!-- ⭐ 多張圖片輸入：每行一張網址 -->
-    <label>商品圖片網址（可多張，一行一張）</label>
-    <textarea id="prodImages" placeholder="例：\nhttps://example.com/pic1.jpg\nhttps://example.com/pic2.jpg"></textarea>
-    <!-- 多張圖片預覽 -->
     <div class="img-preview-wrap">
-      <div class="img-preview-label">圖片預覽（第 1 張會作為封面顯示）：</div>
+      <div class="img-preview-label">
+        圖片預覽（第一張為封面，可刪除）：
+      </div>
       <div id="imgPreviewList" class="thumb-list"></div>
     </div>
 
@@ -87,9 +167,6 @@
     <div id="msgError" class="msg-error"></div>
     <div id="msgOk" class="msg-ok"></div>
 
-    <div class="back-link">
-      <a href="seller_home.html">&lt; 返回賣家後台</a>
-    </div>
   </div>
 </div>
 
@@ -98,8 +175,8 @@
   const $ = id => document.getElementById(id);
   const FALLBACK_IMG = 'https://via.placeholder.com/400x300?text=No+Image';
 
-  const userNameSpan = $('userName');
-  const btnLogout = $('btnLogout');
+  const userNameSpan = $('headerUserName');
+  const btnLogout = $('headerLogoutBtn');
   const loadingEl = $('loading');
   const notFoundEl = $('notFound');
   const formArea = $('formArea');
@@ -109,97 +186,285 @@
   const titleInput = $('prodTitle');
   const categorySelect = $('prodCategory');
   const priceInput = $('prodPrice');
-  const stockInput = $('prodStock');
+  const stockInput = $('prodStock'); // ✅ 正確變數名稱
   const descInput = $('prodDesc');
-  const imagesInput = $('prodImages');
   const imgPreviewList = $('imgPreviewList');
   const btnSave = $('btnSave');
   const btnDelete = $('btnDelete');
   const msgErrorEl = $('msgError');
   const msgOkEl = $('msgOk');
+  
   const params = new URLSearchParams(window.location.search);
   const pid = params.get('pid');
+
+  const fileInput = $('imageFiles');
+  let imageUrls = []; 
 
   let currentSellerUid = null;
   let currentProductData = null;
 
   function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{ 'Authorization':'Bearer '+t } : {}; }
 
-  // 渲染圖片預覽（每行一張）
-  function renderPreview(){
-    imgPreviewList.innerHTML = '';
-    const raw = (imagesInput.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-    if(!raw.length){ const span = document.createElement('div'); span.className='thumb-empty'; span.textContent='尚未設定圖片。'; imgPreviewList.appendChild(span); return; }
-    raw.forEach((url, idx)=>{
-      const wrap = document.createElement('div'); wrap.className='thumb-item';
-      const img = document.createElement('img'); img.src = url; img.onerror = ()=>{ img.src = FALLBACK_IMG; };
-      wrap.appendChild(img);
-      if(idx===0){ const b = document.createElement('div'); b.className='thumb-badge'; b.textContent='封面'; wrap.appendChild(b); }
-      imgPreviewList.appendChild(wrap);
-    });
+  // 登出
+  if(btnLogout){
+      btnLogout.addEventListener('click', (e)=>{ 
+          e.preventDefault();
+          localStorage.removeItem('token'); 
+          window.location.href='seller_login.html'; 
+      });
   }
-  imagesInput && imagesInput.addEventListener('input', renderPreview);
 
-  btnLogout.addEventListener('click', ()=>{ localStorage.removeItem('token'); window.location.href='seller_login.html'; });
-
+  // 初始化
   (async function(){
     try{
       const res = await fetch('/api/auth/me', { headers: getAuthHeader() });
       if(!res.ok){ alert('請先登入賣家帳號'); window.location.href='seller_login.html'; return; }
+      
       const user = await res.json();
       if(!user || user.role !== 'seller'){ alert('此帳號不是賣家角色'); localStorage.removeItem('token'); window.location.href='seller_login.html'; return; }
-      currentSellerUid = user.id; userNameSpan.textContent = user.name || user.email || '賣家';
+      
+      currentSellerUid = user.id; 
+      if(userNameSpan) userNameSpan.textContent = user.name || user.email || '賣家';
+      
       if(pid) await loadProduct();
-    }catch(err){ console.error(err); alert('讀取使用者資料失敗：'+(err.message||err)); window.location.href='seller_login.html'; }
+      else {
+          loadingEl.style.display='none';
+          notFoundEl.textContent='網址缺少商品ID參數';
+          notFoundEl.style.display='block';
+      }
+    }catch(err){ 
+        console.error(err); 
+        alert('讀取使用者資料失敗：'+(err.message||err)); 
+        // window.location.href='seller_login.html'; 
+    }
   })();
 
-  async function loadProduct(){
-    try{
-      const res = await fetch('/api/products/' + encodeURIComponent(pid), { headers: getAuthHeader() });
+  async function loadProduct() {
+    if (!pid) return;
+
+    try {
+      const res = await fetch('/api/products/' + encodeURIComponent(pid), { 
+        headers: getAuthHeader() 
+      });
+
       loadingEl.style.display = 'none';
-      if(!res.ok){ notFoundEl.style.display='block'; notFoundEl.textContent='找不到此商品或您無權檢視'; return; }
-      const data = await res.json(); currentProductData = data;
+
+      if (!res.ok) {
+        let errMsg = '找不到此商品或您無權檢視';
+        try {
+          const errData = await res.json();
+          if (errData.error) errMsg = errData.error;
+        } catch {}
+        notFoundEl.style.display = 'block';
+        notFoundEl.textContent = errMsg;
+        return;
+      }
+
+      const data = await res.json();
+      currentProductData = data;
+
+      // 權限檢查
       const ownerId = data.seller_id || data.sellerId;
-      if(!ownerId || String(ownerId) !== String(currentSellerUid)){ notFoundEl.textContent = '你不是此商品的賣家，無法編輯。'; notFoundEl.style.display='block'; return; }
+      if (!ownerId || String(ownerId) !== String(currentSellerUid)) {
+        notFoundEl.style.display = 'block';
+        notFoundEl.textContent = '你不是此商品的賣家，無法編輯。';
+        return;
+      }
+
+      // 填入資料
       titleInput.value = data.title || '';
       categorySelect.value = data.category || '';
       priceInput.value = (typeof data.price === 'number' || data.price) ? data.price : '';
-      stockInput.value = (typeof data.quantity === 'number' || data.quantity) ? data.quantity : (data.stock||'');
+      stockInput.value = (typeof data.quantity === 'number' || data.quantity) ? data.quantity : (data.stock || '');
       descInput.value = data.description || data.desc || '';
-      // images
+
+      // 圖片處理
       let imgArray = [];
-      if(Array.isArray(data.images) && data.images.length) imgArray = data.images;
-      else if(data.image) imgArray = [data.image];
-      imagesInput.value = imgArray.join('\n'); renderPreview();
-      titleBar.textContent = '編輯商品 - ' + (data.title||'(未命名)'); formArea.style.display = 'block';
-    }catch(err){ console.error(err); loadingEl.style.display='none'; notFoundEl.textContent = '載入商品發生錯誤：'+(err.message||err); notFoundEl.style.display='block'; }
+      if (Array.isArray(data.images) && data.images.length) imgArray = data.images;
+      else if (data.image) imgArray = [data.image];
+
+      imageUrls = imgArray.slice(); 
+      renderImages();
+
+      titleBar.textContent = '編輯商品 - ' + (data.title || '(未命名)');
+      formArea.style.display = 'block';
+
+    } catch (err) {
+      console.error(err);
+      loadingEl.style.display = 'none';
+      notFoundEl.style.display = 'block';
+      notFoundEl.textContent = '載入商品發生錯誤：' + (err.message || err);
+    }
   }
 
+  // 儲存變更
   btnSave.addEventListener('click', async ()=>{
     msgErrorEl.textContent=''; msgOkEl.textContent='';
-    const title = titleInput.value.trim(); const category = categorySelect.value; const priceStr = priceInput.value; const stockStr = stockInput.value;
+    const title = titleInput.value.trim(); 
+    const category = categorySelect.value; 
+    const priceStr = priceInput.value; 
+    const stockStr = stockInput.value;
+
     if(!title){ msgErrorEl.textContent='請填寫商品名稱。'; return; }
     if(!category){ msgErrorEl.textContent='請選擇商品分類。'; return; }
     if(priceStr==='' || stockStr===''){ msgErrorEl.textContent='請填寫價格與庫存數量。'; return; }
-    const price = Number(priceStr); const stock = Number(stockStr);
+
+    const price = Number(priceStr); 
+    const stock = Number(stockStr);
+
     if(isNaN(price) || price<0){ msgErrorEl.textContent='價格格式不正確。'; return; }
     if(isNaN(stock) || stock<0){ msgErrorEl.textContent='庫存格式不正確。'; return; }
-    const imagesArr = (imagesInput.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
+
+    const imagesArr = imageUrls.slice(); 
+
     try{
-      btnSave.disabled = true; btnSave.textContent = '儲存中...';
-      const payload = { title, category, price, quantity: stock, description: descInput.value.trim(), images: imagesArr, image: imagesArr[0] || null };
-      const res = await fetch('/api/products/' + encodeURIComponent(pid), { method:'PUT', headers: Object.assign({ 'Content-Type':'application/json' }, getAuthHeader()), body: JSON.stringify(payload) });
-      if(!res.ok){ const e = await res.json().catch(()=>null); throw new Error(e && e.error ? e.error : ('Status '+res.status)); }
-      msgOkEl.textContent = '已成功更新商品資料！'; titleBar.textContent = '編輯商品 - '+title; renderPreview();
-    }catch(err){ console.error(err); msgErrorEl.textContent = '更新失敗：'+(err.message||err); }
-    finally{ btnSave.disabled = false; btnSave.textContent = '儲存變更'; }
+      btnSave.disabled = true; 
+      btnSave.textContent = '儲存中...';
+
+      const payload = { 
+        title, 
+        category, 
+        price, 
+        stock: stock,
+        quantity: stock, 
+        description: descInput.value.trim(), 
+        images: imagesArr, 
+        image: imagesArr[0] || null 
+      };
+
+      const res = await fetch('/api/seller/products/' + encodeURIComponent(pid), { 
+        method:'PUT', 
+        headers: Object.assign({ 'Content-Type':'application/json' }, getAuthHeader()), 
+        body: JSON.stringify(payload) 
+      });
+
+      if(!res.ok){ 
+        const e = await res.json().catch(()=>null); 
+        throw new Error(e && e.error ? e.error : ('Status '+res.status)); 
+      }
+
+      msgOkEl.textContent = '已成功更新商品資料！'; 
+      titleBar.textContent = '編輯商品 - '+title; 
+      renderImages();
+
+    }catch(err){ 
+      console.error(err); 
+      msgErrorEl.textContent = '更新失敗：'+(err.message||err); 
+    }finally{ 
+      btnSave.disabled = false; 
+      btnSave.textContent = '儲存變更'; 
+      window.location.href = 'seller_home.html'; 
+    }
   });
+
+  // 刪除商品
   btnDelete.addEventListener('click', async ()=>{
     if(!pid) return; if(!confirm('確定要刪除此商品嗎？\n刪除後無法復原，買家也將無法再看到此商品。')) return;
-    try{ btnDelete.disabled = true; btnDelete.textContent = '刪除中...'; const res = await fetch('/api/products/' + encodeURIComponent(pid), { method:'DELETE', headers: getAuthHeader() }); if(!res.ok){ const e = await res.json().catch(()=>null); throw new Error(e && e.error ? e.error : ('Status '+res.status)); } alert('商品已刪除！'); window.location.href = 'seller_home.html'; }
+    try{ 
+        btnDelete.disabled = true; 
+        btnDelete.textContent = '刪除中...'; 
+        const res = await fetch('/api/seller/products/' + encodeURIComponent(pid), { method:'DELETE', headers: getAuthHeader() }); 
+        if(!res.ok){ const e = await res.json().catch(()=>null); throw new Error(e && e.error ? e.error : ('Status '+res.status)); } 
+        alert('商品已刪除！'); 
+        window.location.href = 'seller_home.html'; 
+    }
     catch(err){ console.error(err); alert('刪除失敗：'+(err.message||err)); }
     finally{ btnDelete.disabled = false; btnDelete.textContent = '刪除商品（無法復原）'; }
   });
+
+  // 上傳圖片函式
+  async function uploadFile(file){
+    const form = new FormData();
+    form.append('file', file);
+
+    const res = await fetch('/api/uploads', {
+      method:'POST',
+      headers: getAuthHeader(),
+      body: form
+    });
+    if(!res.ok) throw new Error('Upload failed');
+    const data = await res.json();
+    return data.url;
+  }
+
+  // 渲染圖片預覽
+  function renderImages(){
+    imgPreviewList.innerHTML = '';
+
+    if(!imageUrls.length){
+      const span = document.createElement('div');
+      span.className = 'thumb-empty';
+      span.textContent = '尚未上傳圖片';
+      imgPreviewList.appendChild(span);
+      return;
+    }
+
+    imageUrls.forEach((url, idx)=>{
+      const wrap = document.createElement('div');
+      wrap.className = 'thumb-item';
+
+      const img = document.createElement('img');
+      img.src = url;
+      wrap.appendChild(img);
+
+      // 封面標籤
+      if(idx === 0){
+        const badge = document.createElement('div');
+        badge.className = 'thumb-badge';
+        badge.textContent = '封面';
+        wrap.appendChild(badge);
+      }
+
+      // 刪除按鈕
+      const del = document.createElement('button');
+      del.className = 'thumb-del';
+      del.textContent = '✕';
+      del.style.position = 'absolute';
+      del.style.top = '2px';
+      del.style.right = '2px';
+      del.style.background = 'rgba(0,0,0,0.6)';
+      del.style.color = 'white';
+      del.style.border = 'none';
+      del.style.borderRadius = '50%';
+      del.style.width = '18px';
+      del.style.height = '18px';
+      del.style.fontSize = '12px';
+      del.style.cursor = 'pointer';
+      del.onclick = () => {
+        imageUrls.splice(idx, 1); // 個別刪除
+        renderImages();
+      };
+      wrap.appendChild(del);
+
+      imgPreviewList.appendChild(wrap);
+    });
+  }
+
+  // 選擇圖片事件
+  fileInput.addEventListener('change', async (e)=>{
+    const files = Array.from(e.target.files || []);
+    for(const f of files){
+      try{
+        const url = await uploadFile(f);
+        imageUrls.push(url);
+        renderImages();
+      }catch(err){
+        alert('圖片上傳失敗');
+      }
+    }
+    fileInput.value = ''; // 允許同檔再選
+  });
+
+  // ✅ [修正] 庫存輸入限制 (確保變數名稱正確)
+  stockInput.addEventListener('input', function() {
+      const val = parseInt(this.value, 10);
+      
+      // 如果輸入非數字或小於0，修正回0
+      if (isNaN(val) || val < 0) {
+        this.value = 0;
+      } 
+  });
+
 </script>
 </body>
 </html>

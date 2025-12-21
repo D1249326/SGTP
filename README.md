@@ -1,1 +1,0 @@
-"# SGTP for gemini" 

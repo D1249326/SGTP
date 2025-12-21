@@ -4,15 +4,117 @@
   <meta charset="UTF-8" />
   <title>SGTP - 購物車</title>
   <style>
+    /* =========================================
+       1. 全局與 Header 樣式 (統一風格)
+       ========================================= */
     body { margin:0; font-family: Arial, sans-serif; background:#f5f5f5; }
+    
     header {
-      background:#1f354d; color:#fff; padding:16px 24px;
-      display:flex; justify-content:space-between; align-items:center;
+      background: #1f354d;
+      color: white;
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      height: 50px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    header h1 { margin:0; font-size:22px; }
-    .header-right a { color:#fff; text-decoration:none; margin-left:12px; font-size:14px; }
 
+    .logo {
+      font-size: 28px;
+      font-weight: bold;
+      color: white;
+      text-decoration: none;
+      white-space: nowrap;
+      margin-right: 10px;
+    }
+
+    .header-search {
+      flex: 1;
+      max-width: 600px;
+      margin: 0 auto;
+      display: flex;
+      position: relative;
+    }
+    .header-search input {
+      width: 100%;
+      padding: 8px 36px 8px 12px;
+      border-radius: 4px;
+      border: none;
+      font-size: 14px;
+      outline: none;
+    }
+    .search-icon {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #666;
+      pointer-events: none;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-left: auto;
+    }
+
+    .icon-btn {
+      color: white;
+      text-decoration: none;
+      font-size: 24px;
+      transition: opacity 0.2s;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+    }
+    .icon-btn:hover { opacity: 0.8; }
+
+    .user-menu {
+      position: relative;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      height: 50px;
+      padding-left: 8px;
+    }
+    .user-name { font-size: 16px; font-weight: bold; color: white; }
+    .user-name::after { content: ' ▼'; font-size: 10px; margin-left: 6px; vertical-align: middle; }
+    
+    .dropdown-content {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background-color: white;
+      min-width: 140px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      border-radius: 0 0 4px 4px;
+      overflow: hidden;
+      z-index: 1001;
+    }
+    .dropdown-content a {
+      color: #333;
+      padding: 12px 16px;
+      text-decoration: none;
+      display: block;
+      font-size: 14px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .dropdown-content a:hover { background-color: #f5f5f5; color: #1f354d; }
+    .user-menu:hover .dropdown-content { display: block; }
+    .user-avatar { width: 30px; height: 30px; background-color: #bdc3c7; border-radius: 50%;display: flex; justify-content: center; align-items: center; font-size: 14px; color: #2c3e50;margin-right: 8px;}
+
+    /* =========================================
+       2. 購物車頁面樣式
+       ========================================= */
     .container { max-width:960px; margin:24px auto; padding:0 16px; }
+    
+    h2 { margin-top: 0; color: #333; }
 
     .card {
       background:#fff; border-radius:10px;
@@ -78,15 +180,32 @@
   </style>
 </head>
 <body>
-<header>
-  <h1>購物車</h1>
-  <div class="header-right">
-    <a href="buyer_shop.html">繼續逛商品</a>
-    <a href="buyer_home.html">買家資料</a>
-  </div>
-</header>
+
+  <header>
+    <a href="buyer_shop.html" class="logo">SGTP</a>
+    
+    <div class="header-search">
+      <input id="navSearch" type="text" placeholder="搜尋商品名稱..." />
+    </div>
+
+    <div class="header-right">
+      <a href="buyer_cart.html" class="icon-btn" title="購物車">🛒</a>
+      <a href="buyer_chats.html" class="icon-btn" title="聊天室">💬</a>
+      
+      <div class="user-menu">
+        <div class="user-avatar">B</div>
+        <span class="user-name" id="headerUser">載入中...</span>
+        <div class="dropdown-content">
+          <a href="buyer_home.html">我的資料</a>
+          <a href="buyer_orders.html">訂單查詢</a>
+          <a href="#" id="headerLogoutBtn">登出</a>
+        </div>
+      </div>
+    </div>
+  </header>
 
 <div class="container">
+  <h2>我的購物車</h2>
   <div class="card">
     <div id="loading">載入購物車中...</div>
     <div id="emptyMsg" class="empty" style="display:none;">
@@ -111,11 +230,7 @@
     <div class="summary" id="summary" style="display:none;">
       <div class="total" id="totalPrice">總金額：NT$ 0</div>
       <div class="btn-row">
-        <button class="btn btn-back" onclick="location.href='buyer_shop.html'">
-          &lt; 繼續逛逛商品
-        </button>
-        <button onclick="location.href='buyer_checkout.html'">前往結帳</button>
-        </button>
+        <button id="btnCheckout" class="btn btn-checkout">前往結帳</button>
       </div>
     </div>
 
@@ -124,6 +239,34 @@
 </div>
 
 <script>
+  /* ========== 1. Header 邏輯 ========== */
+  const headerUserEl = document.getElementById('headerUser');
+  const headerLogoutBtn = document.getElementById('headerLogoutBtn');
+  const navSearch = document.getElementById('navSearch');
+
+  // 登出功能
+  if(headerLogoutBtn){
+    headerLogoutBtn.addEventListener('click', (e)=>{
+      e.preventDefault();
+      localStorage.removeItem('token');
+      alert('已登出');
+      window.location.href = 'buyer_login.html';
+    });
+  }
+
+  // 搜尋框功能 (按下 Enter 跳轉)
+  if(navSearch){
+    navSearch.addEventListener('keypress', (e)=>{
+      if(e.key === 'Enter'){
+        const val = navSearch.value.trim();
+        if(val) {
+          window.location.href = 'buyer_shop.html?q=' + encodeURIComponent(val);
+        }
+      }
+    });
+  }
+
+  /* ========== 2. 購物車邏輯 ========== */
   const loadingEl   = document.getElementById('loading');
   const emptyMsgEl  = document.getElementById('emptyMsg');
   const cartTable   = document.getElementById('cartTable');
@@ -143,7 +286,12 @@
     try{
       const me = await fetch('/api/auth/me', { headers: getAuthHeader() });
       if (!me.ok) { alert('請先登入買家帳號再查看購物車。'); window.location.href='buyer_login.html'; return; }
+      
       currentUser = await me.json();
+      
+      // ✅ 更新 Header 顯示名字
+      if(headerUserEl) headerUserEl.textContent = currentUser.name || currentUser.email;
+
       await loadCart();
     }catch(err){ console.error(err); alert('請先登入買家帳號再查看購物車。'); window.location.href='buyer_login.html'; }
   })();
@@ -171,17 +319,58 @@
   }
 
   async function updateQuantity(productId, delta){
+    msgEl.textContent = ''; 
+    msgEl.classList.remove('msg-ok');
+
     try{
-      // fetch existing to compute new qty
-      const res = await fetch('/api/cart', { headers: getAuthHeader() }); if (!res.ok) throw new Error('讀取購物車失敗'); const rows = await res.json(); const item = rows.find(r=>r.productId==productId); if (!item) { await loadCart(); return; }
-      const newQty = (item.qty || 0) + delta; if (newQty <= 0) { await fetch('/api/cart/items/' + encodeURIComponent(productId), { method:'DELETE', headers: getAuthHeader() }); } else { await fetch('/api/cart/items/' + encodeURIComponent(productId), { method:'PUT', headers: getAuthHeader(), body: JSON.stringify({ qty: newQty }) }); }
+      const res = await fetch('/api/cart', { headers: getAuthHeader() }); 
+      if (!res.ok) throw new Error('讀取購物車失敗'); 
+      const rows = await res.json(); 
+      const item = rows.find(r => r.productId == productId); 
+      
+      if (!item) { await loadCart(); return; }
+
+      const currentQty = item.qty || 0;
+      const maxStock = (item.stock !== undefined && item.stock !== null) ? item.stock : 9999;
+
+      if (delta > 0 && currentQty >= maxStock) {
+        msgEl.textContent = '已達購買數量上限 (庫存僅剩 ' + maxStock + ' 件)';
+        return; 
+      }
+
+      const newQty = currentQty + delta; 
+      
+      if (newQty <= 0) { 
+        if(!confirm('確定要移除此商品嗎？')) return; 
+        await fetch('/api/cart/items/' + encodeURIComponent(productId), { method:'DELETE', headers: getAuthHeader() }); 
+      } else { 
+        await fetch('/api/cart/items/' + encodeURIComponent(productId), { method:'PUT', headers: getAuthHeader(), body: JSON.stringify({ qty: newQty }) }); 
+      }
+      
       await loadCart();
-    }catch(err){ console.error(err); msgEl.textContent = '更新數量失敗：' + (err.message||err); }
+
+    }catch(err){ 
+      console.error(err); 
+      msgEl.textContent = '更新數量失敗：' + (err.message||err); 
+    }
   }
 
-  async function removeItem(productId){ if (!confirm('確定要從購物車移除這項商品嗎？')) return; try{ const res = await fetch('/api/cart/items/' + encodeURIComponent(productId), { method: 'DELETE', headers: getAuthHeader() }); if (!res.ok) throw new Error('移除失敗'); msgEl.classList.add('msg-ok'); msgEl.textContent='已移除該商品。'; await loadCart(); }catch(err){ console.error(err); msgEl.classList.remove('msg-ok'); msgEl.textContent = '移除失敗：' + (err.message||err); } }
+  async function removeItem(productId){ 
+    if (!confirm('確定要從購物車移除這項商品嗎？')) return; 
+    try{ 
+      const res = await fetch('/api/cart/items/' + encodeURIComponent(productId), { method: 'DELETE', headers: getAuthHeader() }); 
+      if (!res.ok) throw new Error('移除失敗'); 
+      msgEl.classList.add('msg-ok'); 
+      msgEl.textContent='已移除該商品。'; 
+      await loadCart(); 
+    }catch(err){ 
+      console.error(err); 
+      msgEl.classList.remove('msg-ok'); 
+      msgEl.textContent = '移除失敗：' + (err.message||err); 
+    } 
+  }
 
-  btnCheckout.addEventListener('click', ()=>{ window.location.href='buyer_checkout.html'; });
+  if(btnCheckout) btnCheckout.addEventListener('click', ()=>{ window.location.href='buyer_checkout.html'; });
 </script>
 
 </body>

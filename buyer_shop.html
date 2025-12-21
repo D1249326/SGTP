@@ -4,164 +4,139 @@
   <meta charset="UTF-8" />
   <title>SGTP - 商品列表</title>
   <style>
-    body { margin:0; font-family: Arial, sans-serif; background:#f5f5f5; }
+    /* ========== Header 樣式 (維持不變) ========== */
+    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0; }
+    header { background: #1f354d; color: white; padding: 10px 24px; display: flex; align-items: center; gap: 20px; position: sticky; top: 0; z-index: 1000; height: 50px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .logo { font-size: 28px; font-weight: bold; color: white; text-decoration: none; white-space: nowrap; margin-right: 10px; }
+    .header-search { flex: 1; max-width: 600px; margin: 0 auto; display: flex; position: relative; }
+    .header-search input { width: 100%; padding: 8px 36px 8px 12px; border-radius: 4px; border: none; font-size: 14px; outline: none; }
+    .search-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #666; pointer-events: none; } 
+    .header-right { display: flex; align-items: center; gap: 20px; margin-left: auto; }
+    .icon-btn { color: white; text-decoration: none; font-size: 24px; transition: opacity 0.2s; cursor: pointer; display: flex; align-items: center; }
+    .icon-btn:hover { opacity: 0.8; }
+    .user-menu { position: relative; cursor: pointer; display: flex; align-items: center; height: 50px; padding-left: 8px; }
+    .user-name { font-size: 16px; font-weight: bold; color: white; }
+    .user-name::after { content: ' ▼'; font-size: 10px; margin-left: 6px; vertical-align: middle; }
+    .dropdown-content { display: none; position: absolute; top: 100%; right: 0; background-color: white; min-width: 140px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 0 0 4px 4px; overflow: hidden; z-index: 1001; }
+    .dropdown-content a { color: #333; padding: 12px 16px; text-decoration: none; display: block; font-size: 14px; border-bottom: 1px solid #f0f0f0; }
+    .dropdown-content a:hover { background-color: #f5f5f5; color: #1f354d; }
+    .user-menu:hover .dropdown-content { display: block; }
+    .user-avatar { width: 30px; height: 30px; background-color: #bdc3c7; border-radius: 50%;display: flex; justify-content: center; align-items: center; font-size: 14px; color: #2c3e50;margin-right: 8px;}
 
-    header {
-      background:#1f354d; color:#fff; padding:16px 24px;
-      display:flex; justify-content:space-between; align-items:center;
+    /* ========== 🆕 分類列樣式 (依照圖片設計) ========== */
+    .category-bar {
+      background: #fff;
+      padding: 15px 0;
+      display: flex;
+      justify-content: center; /* 置中對齊 */
+      gap: 30px;               /* 選項間距 */
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+      overflow-x: auto;        /* 手機版可橫向捲動 */
+      white-space: nowrap;
     }
-    header h1 { margin:0; font-size:22px; }
-    .header-right { font-size:14px; }
-    .header-right a { color:#fff; text-decoration:none; margin-left:12px; }
-
-    .container { max-width:960px; margin:24px auto; padding:0 16px; }
-
-    /* ===== 搜尋 + 分類 ===== */
-    .toolbar {
-      display:flex;
-      gap:10px;
-      margin-bottom:16px;
-      flex-wrap:wrap;
-    }
-    .search-input, .filter-select {
-      padding:8px;
-      border-radius:4px;
-      border:1px solid #ccc;
-      background:#fff;
-      font-size:14px;
-    }
-    .search-input { flex:1; min-width:220px; }
-    .filter-select { width:180px; }
-
-    /* ===== 商品卡片 ===== */
-    .grid {
-      display:grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap:16px;
-    }
-
-    .card {
-      background:#fff;
-      border-radius:8px;
-      overflow:hidden;
-      box-shadow:0 2px 6px rgba(0,0,0,0.12);
-      display:flex;
-      flex-direction:column;
-      cursor:pointer;
-      transition:0.2s ease;
-    }
-    .card:hover {
-      transform: translateY(-2px);
-      box-shadow:0 4px 10px rgba(0,0,0,0.16);
+    
+    .cat-item {
+      font-size: 16px;
+      color: #333;
+      cursor: pointer;
+      padding-bottom: 5px;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+      user-select: none; /* 防止選取文字 */
     }
 
-    .card-img-wrapper {
-      width:100%;
-      height:160px;
-      background:#eee;
-      overflow:hidden;
-    }
-    .card-img-wrapper img {
-      width:100%;
-      height:100%;
-      object-fit:cover;
+    .cat-item:hover {
+      color: #1f354d;
     }
 
-    .card-body {
-      padding:12px;
-      display:flex;
-      flex-direction:column;
-      gap:6px;
+    /* 選中狀態 */
+    .cat-item.active {
+      color: #1f354d;
+      font-weight: bold;
+      border-bottom: 3px solid #1f354d;
     }
 
+    /* ========== 商品列表樣式 ========== */
+    .container { max-width:960px; margin:0 auto 40px auto; padding:0 16px; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:16px; }
+    .card { background:#fff; border-radius:8px; overflow:hidden; box-shadow:0 2px 6px rgba(0,0,0,0.12); display:flex; flex-direction:column; cursor:pointer; transition:0.2s ease; }
+    .card:hover { transform: translateY(-2px); box-shadow:0 4px 10px rgba(0,0,0,0.16); }
+    .card-img-wrapper { width:100%; height:160px; background:#eee; overflow:hidden; }
+    .card-img-wrapper img { width:100%; height:100%; object-fit:cover; }
+    .card-body { padding:12px; display:flex; flex-direction:column; gap:6px; }
     .card-title { font-weight:bold; font-size:16px; color:#333; }
     .card-price { color:#c0392b; font-weight:bold; }
-    .card-desc {
-      font-size:13px;
-      color:#777;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-
-    /* 分類標籤 */
-    .card-cat {
-      display:inline-block;
-      font-size:12px;
-      color:#1f354d;
-      background:#eef3fa;
-      padding:2px 8px;
-      border-radius:999px;
-      width:fit-content;
-    }
-
-    .multi-img-tip {
-      font-size:11px;
-      color:#999;
-    }
-
-    .btn-cart {
-      margin-top:8px;
-      padding:6px;
-      background:#1f354d;
-      color:white;
-      border:none;
-      border-radius:4px;
-      font-size:13px;
-      cursor:pointer;
-    }
-    .btn-cart:hover { background:#274563; }
-
-    .empty {
-      margin-top:30px;
-      text-align:center;
-      color:#777;
-    }
+    .card-cat { display:inline-block; font-size:12px; color:#1f354d; background:#eef3fa; padding:2px 8px; border-radius:999px; width:fit-content; }
+    .empty { margin-top:30px; text-align:center; color:#777; }
   </style>
 </head>
-
 <body>
 
 <header>
-  <h1>SGTP 二手商品平台 - 商品列表</h1>
+  <a href="buyer_shop.html" class="logo">SGTP</a>
+  <div class="header-search">
+    <input id="searchInput" type="text" placeholder="搜尋商品名稱..." />
+  </div>
   <div class="header-right">
-    <a href="buyer_home.html">買家資料</a>
-    <a href="buyer_cart.html">🛒 購物車</a>
-    <a href="buyer_orders.html">訂單查詢</a>
-    <a href="buyer_login.html">登出</a>
+    <a href="buyer_cart.html" class="icon-btn" title="購物車">🛒</a>
+    <a href="buyer_chats.html" class="icon-btn" title="聊天室">💬</a>
+    <div class="user-menu">
+      <div class="user-avatar">B</div>
+      <span class="user-name" id="headerUser">載入中...</span>
+      <div class="dropdown-content">
+        <a href="buyer_home.html">我的資料</a>
+        <a href="buyer_orders.html">訂單查詢</a>
+        <a href="#" id="headerLogoutBtn">登出</a>
+      </div>
+    </div>
   </div>
 </header>
 
+<div class="category-bar">
+  <span class="cat-item active" data-val="全部">全部</span>
+  <span class="cat-item" data-val="運動器材">運動器材</span>
+  <span class="cat-item" data-val="3C產品">3C產品</span>
+  <span class="cat-item" data-val="衣服">衣服</span>
+  <span class="cat-item" data-val="生活雜務">生活雜務</span>
+  <span class="cat-item" data-val="書籍">書籍</span>
+  <span class="cat-item" data-val="其他">其他</span>
+</div>
+
 <div class="container">
-
-  <!-- 搜尋 / 分類 -->
-  <div class="toolbar">
-    <input id="searchInput" class="search-input" placeholder="搜尋商品名稱..." />
-    <select id="categoryFilter" class="filter-select">
-      <option value="全部">全部分類</option>
-      <option value="運動器材">運動器材</option>
-      <option value="3C產品">3C產品</option>
-      <option value="衣服">衣服</option>
-      <option value="生活雜務">生活雜務</option>
-      <option value="書籍">書籍</option>
-      <option value="其他">其他</option>
-    </select>
-  </div>
-
   <div id="productGrid" class="grid"></div>
-  <div id="emptyMsg" class="empty" style="display:none;">
-    目前沒有任何商品
-  </div>
-
+  <div id="emptyMsg" class="empty" style="display:none;">目前沒有任何商品</div>
 </div>
 
 <script>
   const productGrid = document.getElementById('productGrid');
   const emptyMsg = document.getElementById('emptyMsg');
   const searchInput = document.getElementById('searchInput');
-  const categoryFilter = document.getElementById('categoryFilter');
+  const catItems = document.querySelectorAll('.cat-item'); // 取得所有分類按鈕
+  
+  const headerUserEl = document.getElementById('headerUser');
+  const headerLogoutBtn = document.getElementById('headerLogoutBtn');
+  
   let allProducts = [];
+  let currentCategory = '全部'; // 目前選中的分類
   const FALLBACK_IMG = 'https://via.placeholder.com/400x300?text=No+Image';
+
+  function getAuthHeader(){ const t = localStorage.getItem('token'); return t?{ 'Authorization':'Bearer '+t } : {}; }
+
+  (async function init(){
+    try {
+      const res = await fetch('/api/auth/me', { headers: getAuthHeader() });
+      if(res.ok) {
+        const user = await res.json();
+        if(headerUserEl) headerUserEl.textContent = user.name || user.email;
+      } else {
+        if(headerUserEl) headerUserEl.textContent = '訪客';
+      }
+    } catch(e) {}
+    await loadProducts();
+  })();
+
+  if(headerLogoutBtn) headerLogoutBtn.addEventListener('click', (e)=>{ e.preventDefault(); localStorage.removeItem('token'); window.location.href='buyer_login.html'; });
 
   async function loadProducts(){
     try{
@@ -174,19 +149,40 @@
           id: r.id,
           title: r.title || '未命名商品',
           price: typeof r.price === 'number' ? r.price : Number(r.price) || 0,
-          desc: r.desc || r.description || '',
           category: r.category || '其他',
-          images,
           cover: (images[0]) || r.image || FALLBACK_IMG
         };
       });
+
+      // 檢查網址搜尋參數
+      const urlParams = new URLSearchParams(window.location.search);
+      const query = urlParams.get('q');
+      if (query) {
+        searchInput.value = query; 
+      }
+
       applyFilters();
     }catch(err){ console.error(err); emptyMsg.style.display='block'; }
   }
 
+  // ✅ [新增] 分類按鈕點擊事件
+  catItems.forEach(item => {
+    item.addEventListener('click', () => {
+      // 1. 移除所有 active 樣式
+      catItems.forEach(i => i.classList.remove('active'));
+      // 2. 當前點擊的加上 active
+      item.classList.add('active');
+      // 3. 更新目前分類變數
+      currentCategory = item.getAttribute('data-val');
+      // 4. 重新篩選
+      applyFilters();
+    });
+  });
+
   function applyFilters(){
     const key = (searchInput.value || '').toLowerCase().trim();
-    const cat = categoryFilter.value;
+    const cat = currentCategory; // 使用變數而非 select value
+
     const list = allProducts.filter(p => {
       const matchName = p.title.toLowerCase().includes(key);
       const matchCat = (cat === '全部') || (p.category === cat);
@@ -201,65 +197,19 @@
     emptyMsg.style.display = 'none';
     list.forEach(p => {
       const div = document.createElement('div'); div.className='card';
-      div.innerHTML = `<div class="card-img"><img src="${p.cover}" alt="" class="cover"></div><div class="card-body"><h3>${p.title}</h3><div class="cat">${p.category}</div><div class="price">NT$ ${p.price}</div></div>`;
+      div.innerHTML = `
+        <div class="card-img-wrapper"><img src="${p.cover}" alt=""></div>
+        <div class="card-body">
+          <div class="card-title">${p.title}</div>
+          <div class="card-cat">${p.category}</div>
+          <div class="card-price">NT$ ${p.price}</div>
+        </div>`;
       div.onclick = () => { location.href = 'buyer_product.html?id=' + encodeURIComponent(p.id); };
       productGrid.appendChild(div);
     });
   }
 
   searchInput.addEventListener('input', applyFilters);
-  categoryFilter.addEventListener('change', applyFilters);
-  loadProducts();
 </script>
-  const FALLBACK_IMG = 'https://via.placeholder.com/400x300?text=No+Image';
-
-  async function loadProducts(){
-    try{
-      const res = await fetch('/api/products'); if (!res.ok) throw new Error('載入失敗'); const rows = await res.json(); allProducts = rows.map(r=>({ id: r.id || r.id, title: r.title, price: r.price, desc: r.description || r.desc || '', image: (r.image || (r.images && r.images[0]) || '') })); render(allProducts);
-    }catch(err){ console.error(err); productGrid.innerHTML = '載入商品錯誤：' + (err.message||err); }
-  }
-
-  function render(list) {
-    productGrid.innerHTML = "";
-    if (!list.length) {
-      emptyMsg.style.display = "block";
-      return;
-    }
-    emptyMsg.style.display = "none";
-
-    list.forEach(p => {
-      const card = document.createElement("div");
-      card.className = "card";
-
-      card.innerHTML = `
-        <div class="card-img-wrapper">
-          <img src="${p.cover}" onerror="this.src='${FALLBACK_IMG}'">
-        </div>
-        <div class="card-body">
-          <div class="card-title">${p.title}</div>
-          <div class="card-price">NT$ ${p.price}</div>
-          <div class="card-desc">${p.desc}</div>
-          <div class="card-cat">${p.category}</div>
-          ${p.images.length > 1
-            ? `<div class="multi-img-tip">共有 ${p.images.length} 張圖片</div>`
-            : ""}
-          <button class="btn-cart">查看商品</button>
-        </div>
-      `;
-
-      card.onclick = () => {
-        window.location.href = `buyer_product.html?pid=${p.id}`;
-      };
-
-      productGrid.appendChild(card);
-    });
-  }
-
-  searchInput.addEventListener("input", applyFilters);
-  categoryFilter.addEventListener("change", applyFilters);
-
-  loadProducts();
-</script>
-
 </body>
 </html>

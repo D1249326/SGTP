@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>聊天室</title>
+  <link rel="stylesheet" href="chat.css">
+</head>
+<body>
+
+  <div class="chat-container">
+    
+    <header class="chat-header">
+      <button class="back-btn" onclick="history.back()">&#8249;</button>
+      <div class="chat-title">聊天室</div> 
+      <div class="header-placeholder"></div>
+    </header>
+
+    <div id="contextBar" class="context-bar" style="display: none;">
+      <div class="context-img-box">
+        <img id="contextImg" src="" alt="Item">
+      </div>
+      <div class="context-info">
+        <div id="contextTitle" class="context-title"></div>
+        <div id="contextSubtitle" class="context-subtitle"></div>
+      </div>
+    </div>
+
+    <div id="messages" class="chat-messages">
+      </div>
+
+    <div class="chat-input">
+      <input type="text" id="msgInput" placeholder="輸入訊息...">
+      <button id="sendBtn">發送</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  
+  <script src="chat.js"></script>
+
+</body>
+</html>

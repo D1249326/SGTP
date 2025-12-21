@@ -97,17 +97,17 @@
     list.forEach(user => {
       const tr = document.createElement('tr');
       const createdText = user.created_at || '-';
+      
+      // ✅ [修改] 這裡原本是 <td>-</td>，改成讀取 user.phone 與 user.address
       tr.innerHTML = `
         <td>${user.name || '-'}</td>
         <td>${user.email || '-'}</td>
-        <td>-</td>
-        <td>-</td>
-        <td>${createdText}</td>
-            <td>${user.role || '-'}</td>
-            <td>
-              <button class="btn-block" data-id="${user.id}" data-blocked="${user.is_blocked ? 1 : 0}">${user.is_blocked ? '解除封鎖' : '封鎖'}</button>
-              <button class="btn-delete" data-id="${user.id}">刪除</button>
-            </td>
+        <td>${user.phone || '-'}</td>  <td>${user.address || '-'}</td> <td>${createdText}</td>
+        <td>${user.role || '-'}</td>
+        <td>
+          <button class="btn-block" data-id="${user.id}" data-blocked="${user.is_blocked ? 1 : 0}">${user.is_blocked ? '解除封鎖' : '封鎖'}</button>
+          <button class="btn-delete" data-id="${user.id}">刪除</button>
+        </td>
       `;
       userTable.appendChild(tr);
     });

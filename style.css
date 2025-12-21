@@ -73,3 +73,18 @@ main {
 .actions a:hover {
   opacity: 0.9;
 }
+
+.thumb-del {
+  position:absolute;
+  right:2px;
+  top:2px;
+  background:rgba(192,57,43,0.9);
+  color:white;
+  border:none;
+  border-radius:50%;
+  width:18px;
+  height:18px;
+  font-size:12px;
+  cursor:pointer;
+  line-height:16px;
+}

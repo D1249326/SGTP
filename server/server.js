@@ -6,27 +6,37 @@ const { db, runMigration } = require('./db');
 
 const path = require('path');
 const multer = require('multer');
+
+const http = require('http');
+const { Server } = require("socket.io");
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve project static files (so GET / will return index.html from project root)
+
+
+// ✅ [新增] 建立 HTTP Server 並綁定 Socket.io
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: "*" } // 允許跨域連線
+});
+
+// Serve project static files
 const publicRoot = path.join(__dirname, '..');
 app.use(express.static(publicRoot));
 
-// Serve uploaded files from /uploads
+// Serve uploaded files
 const uploadsDir = path.join(__dirname, 'public', 'uploads');
 if (!require('fs').existsSync(uploadsDir)) require('fs').mkdirSync(uploadsDir, { recursive: true });
 app.use('/uploads', express.static(uploadsDir));
 
-// configure multer for uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) { cb(null, uploadsDir); },
   filename: function (req, file, cb) { const ts = Date.now(); const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_'); cb(null, ts + '_' + safe); }
 });
 const upload = multer({ storage });
 
-// optional: friendly root message if no index.html
 app.get('/', (req, res, next) => {
   const indexPath = path.join(publicRoot, 'index.html');
   if (require('fs').existsSync(indexPath)) return next();
@@ -35,14 +45,69 @@ app.get('/', (req, res, next) => {
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret';
 
-// Perform migrations and optional auto-seed before starting the server
-// (runMigration now returns a Promise)
+/* =========================================
+   ✅ [新增] Socket.io 聊天邏輯
+   ========================================= */
+/* server.js 的 Socket 部分 */
+
+io.on('connection', (socket) => {
+  console.log('A user connected:', socket.id);
+
+  socket.on('join', (userId) => {
+    socket.join(String(userId));
+  });
+
+  // ✅ [修改] 讀取歷史：加入 order_id 篩選
+  socket.on('loadHistory', ({ user1, user2, productId, orderId }) => {
+    const pid = productId ? parseInt(productId) : 0;
+    const oid = orderId ? parseInt(orderId) : 0; // 新增 orderId
+
+    const sql = `
+      SELECT * FROM chat_messages 
+      WHERE ((sender_id = ? AND receiver_id = ?) 
+         OR (sender_id = ? AND receiver_id = ?))
+      AND product_id = ? 
+      AND order_id = ?   -- ✅ 關鍵：只撈出該訂單的對話
+      ORDER BY created_at ASC
+    `;
+    
+    db.all(sql, [user1, user2, user2, user1, pid, oid], (err, rows) => {
+      if (err) console.error(err);
+      else socket.emit('history', rows || []);
+    });
+  });
+
+  // ✅ [修改] 發送訊息：儲存 order_id
+  socket.on('sendMessage', ({ sender, receiver, content, product_id, order_id }) => {
+    if (!sender || !receiver || !content) return;
+
+    const pid = product_id ? parseInt(product_id) : 0;
+    const oid = order_id ? parseInt(order_id) : 0; // 新增 orderId
+
+    const sql = `INSERT INTO chat_messages (room_id, sender_id, receiver_id, content, product_id, order_id, created_at) VALUES (0, ?, ?, ?, ?, ?, datetime('now', '+8 hours'))`;
+    
+    db.run(sql, [sender, receiver, content, pid, oid], function(err) {
+      if (err) return console.error('Save msg error:', err);
+      
+      const msgData = {
+        id: this.lastID,
+        sender_id: sender,
+        receiver_id: receiver,
+        content: content,
+        product_id: pid,
+        order_id: oid,    // ✅ 回傳給前端
+        created_at: new Date().toISOString()
+      };
+
+      io.to(String(receiver)).emit('receiveMessage', msgData);
+      socket.emit('receiveMessage', msgData);
+    });
+  });
+});
 
 async function initServer(){
   try{
     await runMigration();
-
-    // check whether users table has any rows; if none, run seed automatically
     const userCount = await new Promise((resolve, reject) => {
       db.get('SELECT COUNT(*) AS cnt FROM users', [], (err, row) => {
         if (err) return reject(err);
@@ -51,18 +116,17 @@ async function initServer(){
     });
 
     if (!userCount) {
-      console.log('No users found in DB — running seed to create default accounts and products');
+      console.log('No users found in DB — running seed...');
       const seedModule = require('./seed');
       await seedModule.seed();
       console.log('Auto-seed completed');
     }
   }catch(err){
     console.error('Error during migration/seed:', err);
-    // continue to start server so user can inspect logs; do not crash
   }
 }
 
-// auth middleware to protect admin routes
+// Auth Middleware
 function getTokenFromHeader(req) {
   const h = req.headers && req.headers.authorization;
   if (!h) return null;
@@ -79,117 +143,112 @@ function adminAuth(req, res, next) {
     if (payload.role !== 'admin') return res.status(403).json({ error: 'Requires admin role' });
     req.user = payload;
     next();
-  } catch (e) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
+  } catch (e) { return res.status(401).json({ error: 'Invalid token' }); }
 }
 
-// General authenticated user middleware (no role check)
 function userAuth(req, res, next) {
   const token = getTokenFromHeader(req);
   if (!token) return res.status(401).json({ error: 'Missing token' });
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    // verify in DB whether user is blocked
     db.get('SELECT COALESCE(is_blocked,0) AS is_blocked FROM users WHERE id = ?', [payload.id], (err, row) => {
       if (err) return res.status(500).json({ error: 'DB error' });
       if (row && row.is_blocked) return res.status(403).json({ error: 'User is blocked' });
       req.user = payload;
       next();
     });
-  } catch (e) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
+  } catch (e) { return res.status(401).json({ error: 'Invalid token' }); }
 }
 
-// Seller auth (require role === 'seller')
 function sellerAuth(req, res, next) {
   const token = getTokenFromHeader(req);
   if (!token) return res.status(401).json({ error: 'Missing token' });
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     if (payload.role !== 'seller') return res.status(403).json({ error: 'Requires seller role' });
-    // check blocked
     db.get('SELECT COALESCE(is_blocked,0) AS is_blocked FROM users WHERE id = ?', [payload.id], (err, row) => {
       if (err) return res.status(500).json({ error: 'DB error' });
       if (row && row.is_blocked) return res.status(403).json({ error: 'User is blocked' });
       req.user = payload;
       next();
     });
-  } catch (e) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
+  } catch (e) { return res.status(401).json({ error: 'Invalid token' }); }
 }
 
-// Helper: record admin actions for audit trail (non-blocking)
 function logAdminAction(adminId, action, targetType = null, targetId = null, details = null) {
   try {
-    console.log('logAdminAction called:', { adminId, action, targetType, targetId });
-    db.run('INSERT INTO admin_logs (admin_id, action, target_type, target_id, details) VALUES (?, ?, ?, ?, ?)', [adminId, action, targetType, targetId, details], function(err) {
+    db.run('INSERT INTO admin_logs (admin_id, action, target_type, target_id, details, created_at) VALUES (?, ?, ?, ?, ?, datetime("now", "+8 hours"))', 
+      [adminId, action, targetType, targetId, details], function(err) {
       if (err) console.error('Failed to write admin log:', err);
     });
-  } catch (e) {
-    console.error('Error in logAdminAction:', e);
-  }
+  } catch (e) { console.error('Error in logAdminAction:', e); }
 }
 
-// Create user (general)
+// Create user
 app.post('/api/users/register', (req, res) => {
   const { name, email, password, role, phone, address } = req.body;
   if (!name || !email || !password) return res.status(400).json({ error: 'Missing fields' });
   if (password.length < 6) return res.status(400).json({ error: 'Password too short' });
 
   db.get('SELECT id FROM users WHERE email = ?', [email], async (err, row) => {
-    if (err) { console.error(err); return res.status(500).json({ error: 'DB error' }); }
+    if (err) return res.status(500).json({ error: 'DB error' });
     if (row) return res.status(409).json({ error: 'Email exists' });
 
     try {
       const hash = await bcrypt.hash(password, 10);
       const r = role || 'buyer';
-      db.run('INSERT INTO users (name, email, password_hash, role, phone, address) VALUES (?, ?, ?, ?, ?, ?)', [name, email, hash, r, phone || null, address || null], function(insertErr) {
-        if (insertErr) { console.error(insertErr); return res.status(500).json({ error: 'Insert error' }); }
+      db.run('INSERT INTO users (name, email, password_hash, role, phone, address, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime("now", "+8 hours"))', 
+        [name, email, hash, r, phone || null, address || null], function(insertErr) {
+        if (insertErr) return res.status(500).json({ error: 'Insert error' });
         const id = this.lastID;
         db.get('SELECT id, name, email, role, phone, address, created_at FROM users WHERE id = ?', [id], (getErr, user) => {
-          if (getErr) { console.error(getErr); return res.status(500).json({ error: 'DB error' }); }
           res.status(201).json(user);
         });
       });
-    } catch (e) {
-      console.error(e);
-      res.status(500).json({ error: 'Server error' });
-    }
+    } catch (e) { res.status(500).json({ error: 'Server error' }); }
   });
 });
 
-// Upload endpoint - authenticated users can upload images
+// ✅ [新增] 管理者註冊 API
+app.post('/api/admin/register', (req, res) => {
+  const { name, email, password } = req.body;
+  
+  // 1. 基本檢查
+  if (!name || !email || !password) return res.status(400).json({ error: 'Missing fields' });
+  if (password.length < 6) return res.status(400).json({ error: 'Password too short' });
+
+  // 2. 檢查 Email 是否重複
+  db.get('SELECT id FROM users WHERE email = ?', [email], async (err, row) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    if (row) return res.status(409).json({ error: 'Email exists' });
+
+    try {
+      // 3. 加密密碼
+      const hash = await bcrypt.hash(password, 10);
+      
+      // 4. 寫入資料庫 (強制 role = 'admin')
+      // 注意：管理者不需要電話地址，所以填 null
+      db.run('INSERT INTO users (name, email, password_hash, role, phone, address, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime("now", "+8 hours"))', 
+        [name, email, hash, 'admin', null, null], function(insertErr) {
+        if (insertErr) return res.status(500).json({ error: 'Insert error' });
+        
+        // 回傳成功
+        res.status(201).json({ success: true, message: 'Admin created' });
+      });
+    } catch (e) { res.status(500).json({ error: 'Server error' }); }
+  });
+});
+
 app.post('/api/uploads', userAuth, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  try {
-    const urlPath = '/uploads/' + req.file.filename;
-    res.json({ url: urlPath });
-  } catch (e) {
-    console.error('Upload error', e);
-    res.status(500).json({ error: 'Upload failed' });
-  }
+  res.json({ url: '/uploads/' + req.file.filename });
 });
 
-// Admin register convenience endpoint (keeps existing front-end)
-app.post('/api/admin/register', (req, res) => {
-  // forward to users/register with role=admin
-  const body = Object.assign({}, req.body, { role: 'admin' });
-  req.body = body;
-  return app._router.handle(req, res, () => {});
-});
-
-// Login (returns JWT) - now checks users table
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
-
   db.get('SELECT id, name, email, role, password_hash, COALESCE(is_blocked,0) AS is_blocked FROM users WHERE email = ?', [email], async (err, user) => {
-    if (err) { console.error(err); return res.status(500).json({ error: 'DB error' }); }
+    if (err) return res.status(500).json({ error: 'DB error' });
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-    // deny login for blocked users
     if (user.is_blocked) return res.status(403).json({ error: 'User is blocked' });
 
     const match = await bcrypt.compare(password, user.password_hash);
@@ -201,134 +260,98 @@ app.post('/api/auth/login', (req, res) => {
   });
 });
 
-// Return current user info from token
 app.get('/api/auth/me', (req, res) => {
   const token = getTokenFromHeader(req);
   if (!token) return res.status(401).json({ error: 'Missing token' });
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    // fetch full user data from DB (including phone/address)
-    db.get('SELECT id, name, email, role, phone, address, created_at FROM users WHERE id = ?', [payload.id], (err, row) => {
+    
+    // ✅ [修改] 加入子查詢來計算 avg_rating 和 review_count
+    const sql = `
+      SELECT u.id, u.name, u.email, u.role, u.phone, u.address, u.created_at,
+      (SELECT AVG(rating) FROM reviews WHERE seller_id = u.id) as avg_rating,
+      (SELECT COUNT(*) FROM reviews WHERE seller_id = u.id) as review_count
+      FROM users u
+      WHERE u.id = ?
+    `;
+
+    db.get(sql, [payload.id], (err, row) => {
       if (err) return res.status(500).json({ error: 'DB error' });
       if (!row) return res.status(404).json({ error: 'User not found' });
-      res.json({ id: row.id, name: row.name, email: row.email, role: row.role, phone: row.phone, address: row.address, created_at: row.created_at });
+      res.json(row);
     });
-  } catch (e) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
+  } catch (e) { return res.status(401).json({ error: 'Invalid token' }); }
 });
 
-// Update current user's profile (requires authentication)
+// Update user profile
+// Update user profile
 app.put('/api/users/me', userAuth, (req, res) => {
   const uid = req.user.id;
   const { name, email, phone, address, currentPassword } = req.body;
 
-  // If email change requested, verify currentPassword
-  function doUpdate() {
-    db.run('UPDATE users SET name = ?, email = ?, phone = ?, address = ? WHERE id = ?', [name || null, email || null, phone || null, address || null, uid], function(err) {
-      if (err) return res.status(500).json({ error: 'DB error' });
-      db.get('SELECT id, name, email, role, phone, address, created_at FROM users WHERE id = ?', [uid], (e, row) => {
-        if (e) return res.status(500).json({ error: 'DB error' });
-        res.json(row);
-      });
-    });
-  }
+  // 1. 先從資料庫查出目前的使用者資料 (比對用)
+  db.get('SELECT * FROM users WHERE id = ?', [uid], async (err, currentUser) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    if (!currentUser) return res.status(404).json({ error: 'User not found' });
 
-  if (email) {
-    // check if email already used by other user
-    db.get('SELECT id, password_hash FROM users WHERE email = ? AND id != ?', [email, uid], (err, row) => {
-      if (err) return res.status(500).json({ error: 'DB error' });
-      if (row) return res.status(409).json({ error: 'Email already in use' });
-      // verify currentPassword
-      if (!currentPassword) return res.status(400).json({ error: 'currentPassword required to change email' });
-      db.get('SELECT password_hash FROM users WHERE id = ?', [uid], async (er, r2) => {
-        if (er) return res.status(500).json({ error: 'DB error' });
-        const match = await bcrypt.compare(currentPassword, r2.password_hash);
-        if (!match) return res.status(401).json({ error: 'Invalid password' });
+    // 2. 判斷 Email 是否真的有變更
+    // (如果前端傳來的 email 跟資料庫裡的一樣，就算沒變)
+    const isEmailChanged = email && (email !== currentUser.email);
+
+    // 定義執行更新的函式
+    const doUpdate = () => {
+      // 使用新值，若前端沒傳該欄位則維持原值 (避免 undefined 變成 null)
+      const newName = name !== undefined ? name : currentUser.name;
+      const newEmail = email !== undefined ? email : currentUser.email;
+      const newPhone = phone !== undefined ? phone : currentUser.phone;
+      const newAddress = address !== undefined ? address : currentUser.address;
+
+      const sql = 'UPDATE users SET name = ?, email = ?, phone = ?, address = ? WHERE id = ?';
+      db.run(sql, [newName, newEmail, newPhone, newAddress, uid], function(err) {
+        if (err) return res.status(500).json({ error: 'Update DB error' });
+        
+        // 更新成功，回傳最新的資料給前端
+        db.get('SELECT id, name, email, role, phone, address, created_at FROM users WHERE id = ?', [uid], (e, row) => {
+          res.json(row);
+        });
+      });
+    };
+
+    // 3. 驗證邏輯
+    if (isEmailChanged) {
+      // --- 情況 A：Email 有變，需要嚴格檢查 ---
+      
+      // 檢查 Email 是否被其他人佔用
+      db.get('SELECT id FROM users WHERE email = ? AND id != ?', [email, uid], async (err, row) => {
+        if (row) return res.status(409).json({ error: '此 Email 已被註冊' });
+
+        // 檢查密碼 (改 Email 必須提供密碼)
+        if (!currentPassword) return res.status(400).json({ error: '更改 Email 需輸入目前密碼' });
+
+        // 驗證密碼是否正確
+        const match = await bcrypt.compare(currentPassword, currentUser.password_hash);
+        if (!match) return res.status(401).json({ error: '密碼錯誤' });
+
+        // 通過驗證，執行更新
         doUpdate();
       });
-    });
-  } else {
-    doUpdate();
-  }
+    } else {
+      // --- 情況 B：Email 沒變 (只是改名字或電話) ---
+      // 不需要檢查密碼，直接更新
+      doUpdate();
+    }
+  });
 });
 
-// Admin-only: list users (supports ?q=, ?role=)
+// Admin: users
 app.get('/api/admin/users', adminAuth, (req, res) => {
   const q = req.query.q || '';
   const role = req.query.role;
   let sql = 'SELECT id, name, email, role, phone, address, created_at, COALESCE(is_blocked, 0) AS is_blocked FROM users';
-  const params = [];
-  const where = [];
+  const params = []; const where = [];
   if (role && role !== 'all') { where.push('role = ?'); params.push(role); }
-  if (q) { where.push('(name LIKE ? OR email LIKE ?)'); params.push('%' + q + '%', '%' + q + '%'); }
+  if (q) { where.push('(name LIKE ? OR email LIKE ?)'); params.push('%'+q+'%', '%'+q+'%'); }
   if (where.length) sql += ' WHERE ' + where.join(' AND ');
-  sql += ' ORDER BY created_at DESC';
-  db.all(sql, params, (err, rows) => {
-    if (err) return res.status(500).json({ error: 'DB error' });
-    // parse images JSON if present
-    const out = rows.map(r => {
-      const copy = Object.assign({}, r);
-      try { copy.images = copy.images ? JSON.parse(copy.images) : null; } catch(e) { copy.images = null; }
-      return copy;
-    });
-    res.json(out);
-  });
-});
-
-// Admin-only: delete user
-app.delete('/api/admin/users/:id', adminAuth, (req, res) => {
-  const id = req.params.id;
-  const adminId = req.user && req.user.id;
-  db.run('DELETE FROM users WHERE id = ?', [id], function(err) {
-    if (err) return res.status(500).json({ error: 'DB error' });
-    if (this.changes === 0) return res.status(404).json({ error: 'Not found' });
-    // record admin action
-    if (adminId) logAdminAction(adminId, 'delete_user', 'user', id, JSON.stringify({ deletedId: id }));
-    res.json({ success: true });
-  });
-});
-
-// Admin-only: update user
-app.put('/api/admin/users/:id', adminAuth, (req, res) => {
-  const id = req.params.id;
-  const { name, email, role, is_blocked } = req.body;
-  const adminId = req.user && req.user.id;
-  // allow updating is_blocked as 0/1 as well
-  db.run('UPDATE users SET name = ?, email = ?, role = ?, is_blocked = COALESCE(?, is_blocked) WHERE id = ?', [name, email, role, (is_blocked != null ? (is_blocked ? 1 : 0) : null), id], function(err) {
-    if (err) return res.status(500).json({ error: 'DB error' });
-    if (this.changes === 0) return res.status(404).json({ error: 'Not found' });
-    db.get('SELECT id, name, email, role, created_at FROM users WHERE id = ?', [id], (e, row) => {
-      if (e) return res.status(500).json({ error: 'DB error' });
-      // record block/unblock
-      if (adminId && (is_blocked !== undefined && is_blocked !== null)) {
-        const act = is_blocked ? 'block_user' : 'unblock_user';
-        logAdminAction(adminId, act, 'user', id, JSON.stringify({ is_blocked: !!is_blocked }));
-      }
-      res.json(row);
-    });
-  });
-});
-
-// Public: get basic user info by id (name only)
-app.get('/api/users/:id', (req, res) => {
-  const id = req.params.id;
-  db.get('SELECT id, name FROM users WHERE id = ?', [id], (err, row) => {
-    if (err) return res.status(500).json({ error: 'DB error' });
-    if (!row) return res.status(404).json({ error: 'Not found' });
-    res.json({ id: row.id, name: row.name });
-  });
-});
-
-// Products CRUD
-app.get('/api/products', (req, res) => {
-  const seller = req.query.seller_id;
-  let sql = 'SELECT * FROM products';
-  const params = [];
-  if (seller) {
-    sql += ' WHERE seller_id = ?';
-    params.push(seller);
-  }
   sql += ' ORDER BY created_at DESC';
   db.all(sql, params, (err, rows) => {
     if (err) return res.status(500).json({ error: 'DB error' });
@@ -336,54 +359,284 @@ app.get('/api/products', (req, res) => {
   });
 });
 
-// Admin: products with seller info
-app.get('/api/admin/products', adminAuth, (req, res) => {
-  const seller = req.query.seller_id;
-  let sql = `SELECT p.*, u.name AS seller_name, u.email AS seller_email FROM products p LEFT JOIN users u ON p.seller_id = u.id`;
-  const params = [];
-  if (seller) {
-    sql += ' WHERE p.seller_id = ?';
-    params.push(seller);
-  }
-  sql += ' ORDER BY p.created_at DESC';
-  db.all(sql, params, (err, rows) => {
+app.delete('/api/admin/users/:id', adminAuth, (req, res) => {
+  const id = req.params.id; const adminId = req.user.id;
+  db.run('DELETE FROM users WHERE id = ?', [id], function(err) {
     if (err) return res.status(500).json({ error: 'DB error' });
-    const out = rows.map(r => { const copy = Object.assign({}, r); try { copy.images = copy.images ? JSON.parse(copy.images) : null; } catch(e) { copy.images = null; } return copy; });
-    res.json(out);
+    if (this.changes === 0) return res.status(404).json({ error: 'Not found' });
+    logAdminAction(adminId, 'delete_user', 'user', id, JSON.stringify({ deletedId: id }));
+    res.json({ success: true });
   });
 });
 
-// Admin dashboard: aggregated stats
-app.get('/api/admin/dashboard', adminAuth, (req, res) => {
-  const sql = `SELECT 
-    (SELECT COUNT(*) FROM users) AS users_count,
-    (SELECT COUNT(*) FROM products) AS products_count,
-    (SELECT COUNT(*) FROM orders) AS orders_count,
-    (SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE status IN ('paid','shipped','completed')) AS total_sales,
-    (SELECT COUNT(*) FROM orders WHERE status = 'pending') AS pending_orders,
-    (SELECT COUNT(*) FROM users WHERE COALESCE(is_blocked,0)=1) AS blocked_users
-  `;
-  db.get(sql, [], (err, row) => {
+app.put('/api/admin/users/:id', adminAuth, (req, res) => {
+  const id = req.params.id; const { name, email, role, is_blocked } = req.body; const adminId = req.user.id;
+  db.run('UPDATE users SET name = ?, email = ?, role = ?, is_blocked = COALESCE(?, is_blocked) WHERE id = ?', 
+    [name, email, role, (is_blocked != null ? (is_blocked?1:0):null), id], function(err) {
     if (err) return res.status(500).json({ error: 'DB error' });
+    db.get('SELECT * FROM users WHERE id = ?', [id], (e, row) => {
+      if (adminId && (is_blocked !== undefined)) {
+        logAdminAction(adminId, is_blocked ? 'block_user' : 'unblock_user', 'user', id);
+      }
+      res.json(row);
+    });
+  });
+});
+
+// ✅ [新增] 管理者儀表板 API (Dashboard)
+app.get('/api/admin/dashboard', adminAuth, async (req, res) => {
+  try {
+    // 使用 Promise.all 平行執行多個 SQL 查詢，提升效能
+    const [users, products, orders, sales, pending, blocked] = await Promise.all([
+      // 1. 使用者總數
+      new Promise((resolve, reject) => {
+        db.get("SELECT COUNT(*) as count FROM users", (err, row) => err ? reject(err) : resolve(row.count));
+      }),
+      // 2. 商品總數
+      new Promise((resolve, reject) => {
+        db.get("SELECT COUNT(*) as count FROM products", (err, row) => err ? reject(err) : resolve(row.count));
+      }),
+      // 3. 訂單總數
+      new Promise((resolve, reject) => {
+        db.get("SELECT COUNT(*) as count FROM orders", (err, row) => err ? reject(err) : resolve(row.count));
+      }),
+      // 4. 總營業額 (加總 total_amount)
+      new Promise((resolve, reject) => {
+        db.get("SELECT SUM(total_amount) as total FROM orders", (err, row) => err ? reject(err) : resolve(row.total || 0));
+      }),
+      // 5. 待處理訂單數 (status = 'pending')
+      new Promise((resolve, reject) => {
+        // 注意：這裡假設你的狀態是用 'pending' (小寫)，如果資料庫存的是 'Pending' 請自行調整
+        db.get("SELECT COUNT(*) as count FROM orders WHERE status = 'pending'", (err, row) => err ? reject(err) : resolve(row.count));
+      }),
+      // 6. 已封鎖使用者數
+      new Promise((resolve, reject) => {
+        db.get("SELECT COUNT(*) as count FROM users WHERE is_blocked = 1", (err, row) => err ? reject(err) : resolve(row.count));
+      })
+    ]);
+
+    // 回傳 JSON 給前端
+    res.json({
+      users_count: users,
+      products_count: products,
+      orders_count: orders,
+      total_sales: sales,
+      pending_orders: pending,
+      blocked_users: blocked
+    });
+
+  } catch (err) {
+    console.error("Dashboard Error:", err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ✅ [新增] 管理者取得所有商品 (包含賣家資訊)
+app.get('/api/admin/products', adminAuth, (req, res) => {
+  // 關聯查詢：取得商品資訊 + 賣家名字/Email
+  const sql = `
+    SELECT p.*, u.name as seller_name, u.email as seller_email 
+    FROM products p 
+    LEFT JOIN users u ON p.seller_id = u.id 
+    ORDER BY p.created_at DESC
+  `;
+  
+  db.all(sql, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    res.json(rows);
+  });
+});
+
+// ✅ [新增] 管理者刪除商品 API
+// 注意：前端呼叫的是 /api/products/:id，我們這裡要補上對應的 Admin 路由
+app.delete('/api/products/:id', adminAuth, (req, res) => {
+  const id = req.params.id;
+  const adminId = req.user.id;
+
+  // 1. 先查出商品標題 (為了寫日誌)
+  db.get('SELECT title FROM products WHERE id = ?', [id], (err, row) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    if (!row) return res.status(404).json({ error: 'Product not found' });
+
+    const title = row.title;
+
+    // 2. 執行刪除
+    db.run('DELETE FROM products WHERE id = ?', [id], function(err) {
+      if (err) return res.status(500).json({ error: 'Delete failed' });
+      
+      // 3. 寫入操作日誌
+      logAdminAction(adminId, 'delete_product', 'product', id, JSON.stringify({ title: title }));
+      
+      res.json({ success: true });
+    });
+  });
+});
+
+// ✅ [新增] 管理者取得所有訂單 (含搜尋、篩選與格式轉換)
+app.get('/api/orders', adminAuth, (req, res) => {
+  const { q, status } = req.query;
+  let sql = 'SELECT * FROM orders';
+  const where = [];
+  const params = [];
+
+  // 1. 篩選狀態
+  if (status) {
+    where.push('status = ?');
+    params.push(status);
+  }
+
+  // 2. 搜尋 (訂單號 或 買家Email)
+  if (q) {
+    where.push('(id LIKE ? OR buyer_email LIKE ?)');
+    params.push(`%${q}%`, `%${q}%`);
+  }
+
+  if (where.length > 0) {
+    sql += ' WHERE ' + where.join(' AND ');
+  }
+
+  sql += ' ORDER BY created_at DESC';
+
+  db.all(sql, params, (err, rows) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+
+    // 3. 資料格式處理
+    const results = rows.map(row => {
+      // 解析商品 JSON
+      try { row.items = JSON.parse(row.items); } catch (e) { row.items = []; }
+      
+      // 轉換欄位名稱 (snake_case -> camelCase) 以配合前端 admin_orders.html
+      row.buyerEmail = row.buyer_email;
+      row.totalAmount = row.total_amount;
+      row.shipName = row.ship_name;
+      row.shipPhone = row.ship_phone;
+      row.shipAddress = row.ship_address;
+      row.cancelStatus = row.cancel_status;
+      row.cancelReason = row.cancel_reason;
+      
+      return row;
+    });
+
+    res.json(results);
+  });
+});
+
+// ✅ [新增] 管理者修改訂單狀態 (含取消)
+app.put('/api/orders/:id', adminAuth, (req, res) => {
+  const id = req.params.id;
+  const { status, cancelStatus } = req.body; // 前端傳來的欄位
+  const adminId = req.user.id;
+
+  // 動態組裝 SQL
+  let sql = 'UPDATE orders SET status = ?';
+  const params = [status];
+
+  if (cancelStatus) {
+    sql += ', cancel_status = ?';
+    params.push(cancelStatus);
+  }
+  
+  // 如果狀態改成 canceled，記錄取消時間
+  if (status === 'canceled') {
+    sql += ', canceled_at = datetime("now", "+8 hours")';
+  }
+
+  sql += ' WHERE id = ?';
+  params.push(id);
+
+  db.run(sql, params, function(err) {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    if (this.changes === 0) return res.status(404).json({ error: 'Order not found' });
+    
+    // 寫入日誌
+    logAdminAction(adminId, 'update_order', 'order', id, `Status changed to: ${status}`);
+    res.json({ success: true });
+  });
+});
+
+// ✅ [新增] 管理者刪除訂單
+app.delete('/api/orders/:id', adminAuth, (req, res) => {
+  const id = req.params.id;
+  const adminId = req.user.id;
+
+  db.run('DELETE FROM orders WHERE id = ?', [id], function(err) {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    if (this.changes === 0) return res.status(404).json({ error: 'Order not found' });
+
+    // 寫入日誌
+    logAdminAction(adminId, 'delete_order', 'order', id);
+    res.json({ success: true });
+  });
+});
+
+// ✅ [新增] 管理者取得操作日誌 (含搜尋與篩選)
+app.get('/api/admin/logs', adminAuth, (req, res) => {
+  const { q, target_type } = req.query;
+  
+  // 關聯查詢：取得日誌 + 管理者名字/Email
+  let sql = `
+    SELECT l.*, u.name as admin_name, u.email as admin_email 
+    FROM admin_logs l
+    LEFT JOIN users u ON l.admin_id = u.id
+  `;
+  
+  const where = [];
+  const params = [];
+
+  // 1. 篩選目標類型 (user, product, order)
+  if (target_type) {
+    where.push('l.target_type = ?');
+    params.push(target_type);
+  }
+
+  // 2. 搜尋 (動作、詳情、管理者Email)
+  if (q) {
+    where.push('(l.action LIKE ? OR l.details LIKE ? OR u.email LIKE ?)');
+    params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+  }
+
+  if (where.length > 0) {
+    sql += ' WHERE ' + where.join(' AND ');
+  }
+
+  sql += ' ORDER BY l.created_at DESC LIMIT 100'; // 限制最近 100 筆，避免資料過多
+
+  db.all(sql, params, (err, rows) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    res.json(rows);
+  });
+});
+
+// Public user info
+/* server.js */
+
+// ✅ [修改] 取得使用者公開資料 (加入平均評分計算)
+app.get('/api/users/:id', (req, res) => {
+  const userId = req.params.id;
+  
+  // 使用 SQL 子查詢直接算出 avg_rating (平均分) 和 review_count (總筆數)
+  const sql = `
+    SELECT u.id, u.name, u.email,
+    (SELECT AVG(rating) FROM reviews WHERE seller_id = u.id) as avg_rating,
+    (SELECT COUNT(*) FROM reviews WHERE seller_id = u.id) as review_count
+    FROM users u
+    WHERE u.id = ?
+  `;
+
+  db.get(sql, [userId], (err, row) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    if (!row) return res.status(404).json({ error: 'Not found' });
     res.json(row);
   });
 });
 
-// Admin logs: list admin actions (supports ?q=&admin_id=&target_type=&limit=&offset=)
-app.get('/api/admin/logs', adminAuth, (req, res) => {
-  const q = req.query.q || '';
-  const adminId = req.query.admin_id;
-  const targetType = req.query.target_type;
-  const limit = parseInt(req.query.limit) || 100;
-  const offset = parseInt(req.query.offset) || 0;
-
-  let sql = `SELECT l.*, u.name AS admin_name, u.email AS admin_email FROM admin_logs l LEFT JOIN users u ON l.admin_id = u.id WHERE 1=1`;
+// Products
+app.get('/api/products', (req, res) => {
+  const seller = req.query.seller_id;
+  let sql = 'SELECT * FROM products';
   const params = [];
-  if (adminId) { sql += ' AND l.admin_id = ?'; params.push(adminId); }
-  if (targetType) { sql += ' AND l.target_type = ?'; params.push(targetType); }
-  if (q) { sql += ' AND (l.action LIKE ? OR l.details LIKE ?)'; params.push('%' + q + '%', '%' + q + '%'); }
-  sql += ' ORDER BY l.created_at DESC LIMIT ? OFFSET ?'; params.push(limit, offset);
-
+  if (seller) { sql += ' WHERE seller_id = ?'; params.push(seller); }
+  sql += ' ORDER BY created_at DESC';
   db.all(sql, params, (err, rows) => {
     if (err) return res.status(500).json({ error: 'DB error' });
     res.json(rows);
@@ -399,301 +652,481 @@ app.get('/api/products/:id', (req, res) => {
   });
 });
 
-// File upload endpoint (authenticated users)
-app.post('/api/uploads', userAuth, upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const url = '/uploads/' + req.file.filename;
-  res.json({ url });
-});
-
-// Create product (admin)
+// Admin create product
 app.post('/api/products', adminAuth, (req, res) => {
   const { title, description, price, quantity, seller_id, category, image, images } = req.body;
-  const adminId = req.user && req.user.id;
-  if (!title) return res.status(400).json({ error: 'Title required' });
-  const imagesTxt = images && Array.isArray(images) ? JSON.stringify(images) : (typeof images === 'string' ? images : null);
-  db.run('INSERT INTO products (title, description, price, quantity, seller_id, category, image, images) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [title, description || '', price || 0, quantity || 0, seller_id || null, category || null, image || null, imagesTxt], function(err) {
+  const adminId = req.user.id;
+  const imagesTxt = images ? JSON.stringify(images) : null;
+  
+  db.run('INSERT INTO products (title, description, price, quantity, seller_id, category, image, images, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime("now", "+8 hours"))', 
+    [title, description || '', price || 0, quantity || 0, seller_id || null, category || null, image || null, imagesTxt], function(err) {
     if (err) return res.status(500).json({ error: 'DB error' });
     db.get('SELECT * FROM products WHERE id = ?', [this.lastID], (e, row) => {
-      if (e) return res.status(500).json({ error: 'DB error' });
-      try { row.images = row.images ? JSON.parse(row.images) : null; } catch(_) { row.images = null; }
-      // record create action
-      if (adminId) logAdminAction(adminId, 'create_product', 'product', row.id, JSON.stringify({ title: row.title }));
+      logAdminAction(adminId, 'create_product', 'product', row.id, JSON.stringify({ title: row.title }));
       res.status(201).json(row);
     });
   });
 });
 
-// Create product (seller) - sellers can create their own products
-app.post('/api/seller/products', sellerAuth, (req, res) => {
-  const { title, description, price, quantity, category, image, images } = req.body;
-  const seller_id = req.user && req.user.id;
-  if (!title) return res.status(400).json({ error: 'Title required' });
-  const imagesTxt = images && Array.isArray(images) ? JSON.stringify(images) : (typeof images === 'string' ? images : null);
-  const imageCover = image || (images && images[0]) || null;
-  db.run('INSERT INTO products (title, description, price, quantity, seller_id, category, image, images) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [title, description || '', price || 0, quantity || 0, seller_id || null, category || null, imageCover, imagesTxt], function(err) {
-    if (err) return res.status(500).json({ error: 'DB error' });
-    db.get('SELECT * FROM products WHERE id = ?', [this.lastID], (e, row) => {
-      if (e) return res.status(500).json({ error: 'DB error' });
-      try { row.images = row.images ? JSON.parse(row.images) : null; } catch(_) { row.images = null; }
-      res.status(201).json(row);
-    });
-  });
-});
-
-// Create product for sellers (authenticated sellers can use this)
+// Seller create product
 app.post('/api/seller/products', userAuth, (req, res) => {
   const user = req.user;
   if (!user || user.role !== 'seller') return res.status(403).json({ error: 'Seller role required' });
   const seller_id = user.id;
-  const { title, description, price, quantity, category, image, images } = req.body;
+  const { title, description, price, quantity, stock, category, image, images } = req.body;
   if (!title) return res.status(400).json({ error: 'Title required' });
+
+  const finalStock = (stock !== undefined && stock !== null) ? stock : (quantity || 0);
   const imagesTxt = images && Array.isArray(images) ? JSON.stringify(images) : (typeof images === 'string' ? images : null);
   const imageVal = image || (images && images.length ? images[0] : null);
-  db.run('INSERT INTO products (title, description, price, quantity, seller_id, category, image, images) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [title, description || '', price || 0, quantity || 0, seller_id, category || null, imageVal || null, imagesTxt], function(err) {
+
+  db.run(
+    'INSERT INTO products (title, description, price, quantity, stock, seller_id, category, image, images, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime("now", "+8 hours"))',
+    [title, description || '', price || 0, finalStock, finalStock, seller_id, category || null, imageVal || null, imagesTxt], 
+    function(err) {
+      if (err) return res.status(500).json({ error: 'DB error' });
+      db.get('SELECT * FROM products WHERE id = ?', [this.lastID], (e, row) => {
+        try { row.images = row.images ? JSON.parse(row.images) : null; } catch(_) { row.images = null; }
+        res.status(201).json(row);
+      });
+    }
+  );
+});
+
+// Update product
+app.put('/api/seller/products/:id', sellerAuth, (req, res) => {
+  const id = req.params.id; const { title, description, price, quantity, stock, category, image, images } = req.body;
+  const sellerId = req.user.id;
+  db.get('SELECT * FROM products WHERE id = ?', [id], (err, product) => {
     if (err) return res.status(500).json({ error: 'DB error' });
-    db.get('SELECT * FROM products WHERE id = ?', [this.lastID], (e, row) => {
-      if (e) return res.status(500).json({ error: 'DB error' });
-      try { row.images = row.images ? JSON.parse(row.images) : null; } catch(_) { row.images = null; }
-      res.status(201).json(row);
-    });
+    if (!product) return res.status(404).json({ error: 'Not found' });
+    if (product.seller_id !== sellerId) return res.status(403).json({ error: 'Forbidden' });
+
+    const finalStock = (stock !== undefined && stock !== null) ? stock : (quantity || 0);
+    const imagesTxt = images && Array.isArray(images) ? JSON.stringify(images) : null;
+
+    db.run(
+      'UPDATE products SET title=?, description=?, price=?, quantity=?, stock=?, category=COALESCE(?, category), image=COALESCE(?, image), images=COALESCE(?, images) WHERE id=?',
+      [title, description, price, finalStock, finalStock, category||null, image||null, imagesTxt, id],
+      function(uErr) {
+        if (uErr) return res.status(500).json({ error: 'DB error' });
+        db.get('SELECT * FROM products WHERE id = ?', [id], (e, row) => {
+          try { row.images = row.images ? JSON.parse(row.images) : null; } catch(_) {}
+          res.json(row);
+        });
+      }
+    );
   });
 });
 
-// Update product (admin)
-app.put('/api/products/:id', adminAuth, (req, res) => {
-  const id = req.params.id;
-  const { title, description, price, quantity, category, image, images } = req.body;
-  const adminId = req.user && req.user.id;
-  const imagesTxt = images && Array.isArray(images) ? JSON.stringify(images) : (typeof images === 'string' ? images : null);
-  db.run('UPDATE products SET title = ?, description = ?, price = ?, quantity = ?, category = COALESCE(?, category), image = COALESCE(?, image), images = COALESCE(?, images) WHERE id = ?', [title, description, price, quantity, category || null, image || null, imagesTxt, id], function(err) {
+app.delete('/api/seller/products/:id', sellerAuth, (req, res) => {
+  const id = req.params.id; const sellerId = req.user.id;
+  db.run('DELETE FROM products WHERE id = ? AND seller_id = ?', [id, sellerId], function(err) {
     if (err) return res.status(500).json({ error: 'DB error' });
     if (this.changes === 0) return res.status(404).json({ error: 'Not found' });
-    db.get('SELECT * FROM products WHERE id = ?', [id], (e, row) => {
-      if (e) return res.status(500).json({ error: 'DB error' });
-      try { row.images = row.images ? JSON.parse(row.images) : null; } catch(_) { row.images = null; }
-      if (adminId) logAdminAction(adminId, 'update_product', 'product', id, JSON.stringify({ title: row.title }));
-      res.json(row);
-    });
-  });
-});
-
-// Delete product (admin)
-app.delete('/api/products/:id', adminAuth, (req, res) => {
-  const id = req.params.id;
-  const adminId = req.user && req.user.id;
-  db.run('DELETE FROM products WHERE id = ?', [id], function(err) {
-    if (err) return res.status(500).json({ error: 'DB error' });
-    if (this.changes === 0) return res.status(404).json({ error: 'Not found' });
-    if (adminId) logAdminAction(adminId, 'delete_product', 'product', id, JSON.stringify({ deletedId: id }));
     res.json({ success: true });
   });
 });
 
-// Orders endpoints (admin only)
-// List all orders (admin) - supports ?q=&status=&limit=&offset=
-app.get('/api/orders', adminAuth, (req, res) => {
-  const q = req.query.q || '';
-  const status = req.query.status || '';
-  const limit = parseInt(req.query.limit) || 200;
-  const offset = parseInt(req.query.offset) || 0;
+// Orders
 
-  let sql = 'SELECT * FROM orders WHERE 1=1';
-  const params = [];
-  if (status) { sql += ' AND status = ?'; params.push(status); }
-  if (q) { sql += ' AND (buyer_email LIKE ? OR id LIKE ?)'; params.push('%' + q + '%', '%' + q + '%'); }
-  sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'; params.push(limit, offset);
-
-  db.all(sql, params, (err, rows) => {
-    if (err) return res.status(500).json({ error: 'DB error' });
-    const out = rows.map(r => {
-      let items = [];
-      try { items = r.items ? JSON.parse(r.items) : []; } catch(e) { items = []; }
-      return {
-        id: r.id,
-        buyerId: r.buyer_id,
-        buyerEmail: r.buyer_email,
-        items,
-        totalAmount: r.total_amount,
-        status: r.status,
-        cancelStatus: r.cancel_status,
-        cancelReason: r.cancel_reason,
-        shipName: r.ship_name,
-        shipPhone: r.ship_phone,
-        shipAddress: r.ship_address,
-        created_at: r.created_at,
-        canceledBy: r.canceled_by,
-        canceledAt: r.canceled_at
-      };
+function dbGet(sql, params) {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
     });
-    res.json(out);
   });
-});
+}
 
-// Create order (authenticated buyer)
-app.post('/api/orders', userAuth, (req, res) => {
+// Create Order (Checkout)
+app.post('/api/orders', userAuth, async (req, res) => {
   const user = req.user;
   const { items, totalAmount, shipName, shipPhone, shipAddress } = req.body;
   if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'Items required' });
 
-  const itemsJson = JSON.stringify(items);
-  const sql = 'INSERT INTO orders (buyer_id, buyer_email, items, total_amount, status, ship_name, ship_phone, ship_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
-  const params = [user.id, user.email || null, itemsJson, totalAmount || 0, 'pending', shipName || null, shipPhone || null, shipAddress || null];
-  db.run(sql, params, function(err) {
-    if (err) { console.error(err); return res.status(500).json({ error: 'DB error' }); }
-    const id = this.lastID;
-    db.get('SELECT * FROM orders WHERE id = ?', [id], (e, row) => {
-      if (e) return res.status(500).json({ error: 'DB error' });
-      try { row.items = row.items ? JSON.parse(row.items) : []; } catch(_) { row.items = []; }
-      res.status(201).json({ id: row.id, buyerId: row.buyer_id, buyerEmail: row.buyer_email, items: row.items, totalAmount: row.total_amount, status: row.status, created_at: row.created_at });
+  try {
+    // 1. 驗證庫存 (Pre-check Stock)
+    for (const item of items) {
+      const productId = item.productId || item.id;
+      const buyQty = Number(item.qty) || 1;
+      
+      const product = await dbGet('SELECT title, stock FROM products WHERE id = ?', [productId]);
+      
+      if (!product) {
+        return res.status(400).json({ error: `商品 ID ${productId} 不存在，無法結帳` });
+      }
+      
+      if (product.stock < buyQty) {
+        return res.status(400).json({ error: `商品 "${product.title}" 庫存不足 (剩餘: ${product.stock}, 欲購買: ${buyQty})` });
+      }
+    }
+
+    // 2. 建立訂單
+    const sql = `
+      INSERT INTO orders (buyer_id, buyer_email, items, total_amount, status, ship_name, ship_phone, ship_address, cancellation_rejected, created_at) 
+      VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, 0, datetime("now", "+8 hours"))
+    `;
+    const itemsJson = JSON.stringify(items);
+    
+    db.run(sql, [user.id, user.email||'', itemsJson, totalAmount||0, shipName, shipPhone, shipAddress], function(err) {
+      if (err) return res.status(500).json({ error: 'DB error during order creation' });
+      const orderId = this.lastID;
+
+      // 3. 扣除庫存
+      for (const item of items) {
+        const productId = item.productId || item.id;
+        const qty = Number(item.qty) || 1;
+        if (!productId) continue;
+
+        db.run('INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)', [orderId, productId, qty, item.price]);
+        
+        db.run('UPDATE products SET stock = stock - ? WHERE id = ?', [qty, productId], function(e){
+          if(e) console.error('[Stock] Deduct failed', e);
+        });
+      }
+      res.status(201).json({ success: true, message: 'Order created', orderId });
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error during checkout validation' });
+  }
+});
+
+// ✅ [新增] 買家完成訂單 (Buy Complete Order)
+app.put('/api/orders/:id/complete', userAuth, (req, res) => {
+  const uid = req.user.id;
+  const oid = req.params.id;
+  
+  // 確認訂單屬於該買家
+  db.get('SELECT * FROM orders WHERE id = ? AND buyer_id = ?', [oid, uid], (err, order) => {
+    if(err || !order) return res.status(404).json({error:'Order not found or access denied'});
+    
+    // 只有「已出貨」狀態才能改為「已完成」
+    const currentStatus = (order.status || '').toLowerCase();
+    if(currentStatus !== 'shipped') {
+      return res.status(400).json({error:'只有已出貨的訂單才能標記為已完成'});
+    }
+    
+    db.run('UPDATE orders SET status = ? WHERE id = ?', ['Completed', oid], (e)=>{
+      if(e) return res.status(500).json({error:'DB Error'});
+      res.json({success:true, message: '訂單已完成'});
     });
   });
 });
 
-// Get current user's orders
 app.get('/api/orders/my', userAuth, (req, res) => {
   const uid = req.user.id;
   db.all('SELECT * FROM orders WHERE buyer_id = ? ORDER BY created_at DESC', [uid], (err, rows) => {
     if (err) return res.status(500).json({ error: 'DB error' });
-    const out = rows.map(r => { try { r.items = r.items ? JSON.parse(r.items) : []; } catch(e){ r.items = []; } return { id: r.id, buyerId: r.buyer_id, buyerEmail: r.buyer_email, items: r.items, totalAmount: r.total_amount, status: r.status, created_at: r.created_at }; });
+    const out = rows.map(r => ({ ...r, items: r.items?JSON.parse(r.items):[] }));
     res.json(out);
   });
 });
 
-// Get order by id (owner or admin)
-app.get('/api/orders/:id', userAuth, (req, res) => {
-  const id = req.params.id;
-  db.get('SELECT * FROM orders WHERE id = ?', [id], (err, row) => {
-    if (err) return res.status(500).json({ error: 'DB error' });
-    if (!row) return res.status(404).json({ error: 'Not found' });
-    // only owner or admin
-    if (String(row.buyer_id) !== String(req.user.id) && req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
-    try { row.items = row.items ? JSON.parse(row.items) : []; } catch(e) { row.items = []; }
-    res.json({ id: row.id, buyerId: row.buyer_id, buyerEmail: row.buyer_email, items: row.items, totalAmount: row.total_amount, status: row.status, created_at: row.created_at });
-  });
-});
-
-// Update order (admin) - supports marking as canceled and updating cancel reason/status
-app.put('/api/orders/:id', adminAuth, (req, res) => {
-  const id = req.params.id;
-  const { status, cancelStatus, cancelReason, canceledBy } = req.body;
-  const adminId = req.user && req.user.id;
-
-  // fetch current order to compare status
-  db.get('SELECT status, cancel_status FROM orders WHERE id = ?', [id], (err, before) => {
-    if (err) return res.status(500).json({ error: 'DB error' });
-    if (!before) return res.status(404).json({ error: 'Not found' });
-
-    // When marking canceled, set canceled_at to now
-    const sql = `UPDATE orders SET status = ?, cancel_status = ?, cancel_reason = ?, canceled_by = ?, canceled_at = CASE WHEN (? = 'canceled' OR ? = 'admin_canceled') THEN datetime('now') ELSE canceled_at END WHERE id = ?`;
-    const params = [status || null, cancelStatus || null, cancelReason || null, canceledBy || null, status || null, cancelStatus || null, id];
-    db.run(sql, params, function(upErr) {
-      if (upErr) { console.error(upErr); return res.status(500).json({ error: 'DB error' }); }
-      if (this.changes === 0) return res.status(404).json({ error: 'Not found' });
-      db.get('SELECT * FROM orders WHERE id = ?', [id], (e, row) => {
-        if (e) return res.status(500).json({ error: 'DB error' });
-        try { row.items = row.items ? JSON.parse(row.items) : []; } catch (_) { row.items = []; }
-        // log status change if changed
-        if (adminId) {
-          const prevStatus = before.status;
-          const prevCancel = before.cancel_status;
-          if (status && status !== prevStatus) {
-            logAdminAction(adminId, 'update_order_status', 'order', id, JSON.stringify({ from: prevStatus, to: status }));
-          }
-          if (cancelStatus && cancelStatus !== prevCancel) {
-            logAdminAction(adminId, 'update_order_cancelStatus', 'order', id, JSON.stringify({ from: prevCancel, to: cancelStatus, reason: cancelReason }));
-          }
-        }
-        res.json(row);
-      });
+// Buyer Cancel Request
+app.put('/api/orders/:id/cancel-request', userAuth, (req, res) => {
+  const orderId = req.params.id; const { cancelReason } = req.body;
+  db.get('SELECT cancellation_rejected, status FROM orders WHERE id = ?', [orderId], (err, row) => {
+    if (err || !row) return res.status(404).json({ error: 'Order not found' });
+    if (row.cancellation_rejected == 1) return res.status(400).json({ error: "已拒絕過，無法再次申請" });
+    
+    db.run("UPDATE orders SET status='Cancellation Requested', cancel_status='Requested', cancel_reason=?, prev_status=? WHERE id=?", 
+      [cancelReason, row.status, orderId], function(e){
+      if(e) return res.status(500).json({error:e.message});
+      res.json({ success: true });
     });
   });
 });
 
-// Delete order (admin)
-app.delete('/api/orders/:id', adminAuth, (req, res) => {
-  const id = req.params.id;
-  const adminId = req.user && req.user.id;
-  db.run('DELETE FROM orders WHERE id = ?', [id], function(err) {
-    if (err) return res.status(500).json({ error: 'DB error' });
-    if (this.changes === 0) return res.status(404).json({ error: 'Not found' });
-    if (adminId) logAdminAction(adminId, 'delete_order', 'order', id, JSON.stringify({ deletedId: id }));
-    res.json({ success: true });
-  });
-});
+// Seller Orders
+function normId(v) { return v===null||v===undefined ? '' : String(v); }
 
-// Cart endpoints (authenticated user)
-// Get cart items
-app.get('/api/cart', userAuth, (req, res) => {
-  const uid = req.user.id;
-  db.all('SELECT * FROM cart_items WHERE user_id = ? ORDER BY created_at DESC', [uid], (err, rows) => {
+app.get('/api/seller/orders/my', sellerAuth, (req, res) => {
+  const sellerId = normId(req.user.id);
+  db.all('SELECT * FROM orders ORDER BY created_at DESC', [], (err, orders) => {
     if (err) return res.status(500).json({ error: 'DB error' });
-    const out = rows.map(r => ({ id: r.id, productId: r.product_id, title: r.title, price: r.price, qty: r.qty, image: r.image, sellerId: r.seller_id }));
+    const out = orders.map(o => {
+      let items = []; try { items = JSON.parse(o.items); } catch {}
+      const myItems = items.filter(i => normId(i.sellerId || i.seller_id) === sellerId);
+      if (myItems.length === 0) return null;
+      const total = myItems.reduce((acc, cur) => acc + (Number(cur.price)*Number(cur.qty)||0), 0);
+      return { ...o, items: myItems, totalAmount: total }; 
+    }).filter(Boolean);
     res.json(out);
   });
 });
 
-// Add or update cart item
+// Seller Approve/Reject Cancel
+app.put('/api/seller/orders/:id/cancel', sellerAuth, (req, res) => {
+  const orderId = req.params.id;
+  const { action } = req.body; // 'approve' or 'reject'
+
+  if (action === 'approve') {
+    db.get('SELECT items FROM orders WHERE id = ?', [orderId], (err, row) => {
+      if (err) return res.status(500).json({ error: 'DB error' });
+      if (!row) return res.status(404).json({ error: 'Order not found' });
+
+      let items = [];
+      try { items = JSON.parse(row.items); } catch(e) {}
+
+      items.forEach(item => {
+        const pid = item.productId || item.id;
+        const qty = Number(item.qty) || 0;
+        if (pid && qty > 0) {
+          db.run('UPDATE products SET stock = stock + ? WHERE id = ?', [qty, pid], (e) => {
+            if (e) console.error(`[Stock Restore] Failed for pid=${pid}`, e);
+            else console.log(`[Stock Restore] Restored ${qty} for pid=${pid}`);
+          });
+        }
+      });
+
+      const sql = `UPDATE orders SET status = 'Cancelled', cancel_status = 'Approved', canceled_at = datetime("now", "+8 hours") WHERE id = ?`;
+      db.run(sql, [orderId], function(updErr) {
+        if(updErr) return res.status(500).json({ error: updErr.message });
+        res.json({ message: "已同意取消，庫存已回補" });
+      });
+    });
+
+  } else if (action === 'reject') {
+    db.get('SELECT prev_status FROM orders WHERE id = ?', [orderId], (err, row) => {
+      if(err) return res.status(500).json({ error: "DB Error" });
+      
+      // ✅ [修正] 因為只有貨到付款，沒有 Paid 狀態，預設回復為 Pending (已成立)
+      let originalStatus = (row && row.prev_status) ? row.prev_status : 'Pending';
+      if (originalStatus === 'Paid') originalStatus = 'Pending'; // 再次確保
+
+      const sql = `UPDATE orders SET status = ?, cancel_status = 'Rejected', cancellation_rejected = 1 WHERE id = ?`;
+      db.run(sql, [originalStatus, orderId], function(updateErr) {
+        if(updateErr) return res.status(500).json({ error: updateErr.message });
+        res.json({ message: `已拒絕取消，訂單回復為 ${originalStatus}` });
+      });
+    });
+  } else {
+    res.status(400).json({ error: "Unknown action" });
+  }
+});
+
+app.put('/api/seller/orders/:id/status', sellerAuth, (req, res) => {
+  const orderId = req.params.id; const { newStatus } = req.body;
+  db.run('UPDATE orders SET status = ? WHERE id = ?', [newStatus, orderId], function(err) {
+    if (err) return res.status(500).json({ error: "DB error" });
+    res.json({ success: true, message: `狀態已更新為 ${newStatus}` });
+  });
+});
+
+app.get('/api/cart', userAuth, (req, res) => {
+  const uid = req.user.id;
+  const sql = `
+    SELECT c.*, p.stock 
+    FROM cart_items c
+    LEFT JOIN products p ON c.product_id = p.id
+    WHERE c.user_id = ? 
+    ORDER BY c.created_at DESC
+  `;
+  db.all(sql, [uid], (err, rows) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    const out = rows.map(r => ({ 
+      id: r.id, 
+      productId: r.product_id, 
+      title: r.title, 
+      price: r.price, 
+      qty: r.qty, 
+      stock: r.stock,
+      image: r.image, 
+      sellerId: r.seller_id 
+    }));
+    res.json(out);
+  });
+});
+
 app.post('/api/cart/items', userAuth, (req, res) => {
   const uid = req.user.id;
   const { productId, title, price, qty, image, sellerId } = req.body;
-  if (!productId) return res.status(400).json({ error: 'productId required' });
-  // If item exists for this user+productId, update qty, else insert
+  
   db.get('SELECT id, qty FROM cart_items WHERE user_id = ? AND product_id = ?', [uid, productId], (err, row) => {
     if (err) return res.status(500).json({ error: 'DB error' });
     if (row) {
-      const newQty = (qty != null) ? qty : row.qty + 1;
-      db.run('UPDATE cart_items SET qty = ?, title = ?, price = ?, image = ?, seller_id = ? WHERE id = ?', [newQty, title || null, price || 0, image || null, sellerId || null, row.id], function(e) {
+      const incomingQty = Number(qty) || 1;
+      const newQty = row.qty + incomingQty;
+      db.run('UPDATE cart_items SET qty = ? WHERE id = ?', [newQty, row.id], function(e) {
         if (e) return res.status(500).json({ error: 'DB error' });
-        db.get('SELECT * FROM cart_items WHERE id = ?', [row.id], (er, item) => { if (er) return res.status(500).json({ error: 'DB error' }); res.json({ id: item.id, productId: item.product_id, title: item.title, price: item.price, qty: item.qty, image: item.image, sellerId: item.seller_id }); });
+        res.json({ success: true });
       });
     } else {
-      db.run('INSERT INTO cart_items (user_id, product_id, title, price, qty, image, seller_id) VALUES (?, ?, ?, ?, ?, ?, ?)', [uid, productId, title || null, price || 0, qty || 1, image || null, sellerId || null], function(e2) {
+      db.run('INSERT INTO cart_items (user_id, product_id, title, price, qty, image, seller_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime("now", "+8 hours"))', 
+        [uid, productId, title, price, qty||1, image, sellerId], function(e2) {
         if (e2) return res.status(500).json({ error: 'DB error' });
-        db.get('SELECT * FROM cart_items WHERE id = ?', [this.lastID], (er, item) => { if (er) return res.status(500).json({ error: 'DB error' }); res.status(201).json({ id: item.id, productId: item.product_id, title: item.title, price: item.price, qty: item.qty, image: item.image, sellerId: item.seller_id }); });
+        res.status(201).json({ success: true, id: this.lastID });
       });
     }
   });
 });
 
-// Update cart item qty
 app.put('/api/cart/items/:productId', userAuth, (req, res) => {
-  const uid = req.user.id;
-  const pid = req.params.productId;
-  const { qty } = req.body;
-  if (qty == null) return res.status(400).json({ error: 'qty required' });
+  const uid = req.user.id; const pid = req.params.productId; const { qty } = req.body;
   db.run('UPDATE cart_items SET qty = ? WHERE user_id = ? AND product_id = ?', [qty, uid, pid], function(err) {
     if (err) return res.status(500).json({ error: 'DB error' });
-    if (this.changes === 0) return res.status(404).json({ error: 'Not found' });
     res.json({ success: true });
   });
 });
 
-// Delete cart item
 app.delete('/api/cart/items/:productId', userAuth, (req, res) => {
-  const uid = req.user.id;
-  const pid = req.params.productId;
+  const uid = req.user.id; const pid = req.params.productId;
   db.run('DELETE FROM cart_items WHERE user_id = ? AND product_id = ?', [uid, pid], function(err) {
     if (err) return res.status(500).json({ error: 'DB error' });
     res.json({ success: true });
   });
 });
 
-// Clear cart
 app.delete('/api/cart/clear', userAuth, (req, res) => {
-  const uid = req.user.id;
-  db.run('DELETE FROM cart_items WHERE user_id = ?', [uid], function(err) {
-    if (err) return res.status(500).json({ error: 'DB error' });
+  db.run('DELETE FROM cart_items WHERE user_id = ?', [req.user.id], (err) => {
     res.json({ success: true });
   });
 });
 
-const port = process.env.PORT || 3000;
+// ✅ [新增] 通用聊天室列表 API (買家/賣家通用)
+app.get('/api/chats', userAuth, (req, res) => {
+  const myId = req.user.id;
 
-// initialize migrations/seed then start server
-initServer().then(() => {
-  app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
-}).catch(err => {
-  console.error('Init failed, starting server anyway:', err);
-  app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
+  const sql = `
+    SELECT * FROM chat_messages 
+    WHERE sender_id = ? OR receiver_id = ? 
+    ORDER BY created_at DESC
+  `;
+
+  db.all(sql, [myId, myId], async (err, rows) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+
+    const chatMap = new Map();
+
+    for (const row of rows) {
+      const isMeSender = (row.sender_id === myId);
+      const otherId = isMeSender ? row.receiver_id : row.sender_id;
+      
+      const pid = row.product_id || 0;
+      const oid = row.order_id || 0; // ✅ 取得 order_id
+
+      // 建立唯一鍵值：人 + 商品 + 訂單
+      const uniqueKey = `${otherId}_${pid}_${oid}`;
+
+      if (!chatMap.has(uniqueKey)) {
+        chatMap.set(uniqueKey, {
+          targetId: otherId,
+          productId: pid,
+          orderId: oid,    // ✅ 存入 Map
+          lastMessage: row.content,
+          timestamp: row.created_at,
+          displayName: 'Loading...', 
+          productTitle: '' 
+        });
+      }
+    }
+
+    const results = Array.from(chatMap.values());
+
+    await Promise.all(results.map(async (chat) => {
+      // A. 查對方名字
+      const user = await new Promise(resolve => {
+        db.get('SELECT name FROM users WHERE id = ?', [chat.targetId], (e, r) => resolve(r));
+      });
+      chat.displayName = user ? user.name : `用戶 #${chat.targetId}`;
+      
+      // B. 查商品標題 (如果有 product_id 且沒有 order_id)
+      if (chat.productId > 0 && chat.orderId === 0) {
+        const product = await new Promise(resolve => {
+          db.get('SELECT title FROM products WHERE id = ?', [chat.productId], (e, r) => resolve(r));
+        });
+        chat.productTitle = product ? product.title : '未知商品';
+      }
+      // C. (可選) 如果需要查訂單詳情也可以在這裡查，但我們直接顯示 ID 即可
+    }));
+
+    res.json(results);
+  });
 });
+
+// ✅ [新增] 提交評價 API
+app.post('/api/reviews', userAuth, (req, res) => {
+  const { orderId, sellerId, rating, comment } = req.body;
+  const buyerId = req.user.id;
+
+  if (!orderId || !sellerId || !rating) return res.status(400).json({ error: 'Missing fields' });
+  if (rating < 1 || rating > 5) return res.status(400).json({ error: 'Rating must be 1-5' });
+
+  // 1. 檢查訂單是否已完成且屬於該買家
+  db.get('SELECT status FROM orders WHERE id = ? AND buyer_id = ?', [orderId, buyerId], (err, order) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (order.status !== 'Completed') return res.status(400).json({ error: '只有「已完成」的訂單才能評價' });
+
+    // 2. 寫入評價
+    const sql = `INSERT INTO reviews (order_id, buyer_id, seller_id, rating, comment, created_at) VALUES (?, ?, ?, ?, ?, datetime('now', '+8 hours'))`;
+    db.run(sql, [orderId, buyerId, sellerId, rating, comment || ''], function(insertErr) {
+      if (insertErr) {
+        if (insertErr.message.includes('UNIQUE')) return res.status(409).json({ error: '此訂單已評價過' });
+        return res.status(500).json({ error: 'Review failed' });
+      }
+      res.json({ success: true, message: '評價成功' });
+    });
+  });
+});
+
+// ✅ [修改] 取得使用者公開資料 (加入平均評分)
+// 請找到原本的 app.get('/api/users/:id') 並替換成這個版本
+app.get('/api/users/:id', (req, res) => {
+  const userId = req.params.id;
+  
+  // 這裡用子查詢算出平均分 (avg_rating) 和 總評價數 (review_count)
+  const sql = `
+    SELECT u.id, u.name, u.email,
+    (SELECT AVG(rating) FROM reviews WHERE seller_id = u.id) as avg_rating,
+    (SELECT COUNT(*) FROM reviews WHERE seller_id = u.id) as review_count
+    FROM users u
+    WHERE u.id = ?
+  `;
+
+  db.get(sql, [userId], (err, row) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    res.json(row);
+  });
+});
+
+// ✅ [修改] 買家取得我的訂單 (加入 is_reviewed 欄位，判斷是否評過了)
+// 請找到 app.get('/api/orders/my') 並修改 SQL
+app.get('/api/orders/my', userAuth, (req, res) => {
+  const uid = req.user.id;
+  // LEFT JOIN reviews 來檢查是否已經有評價紀錄
+  const sql = `
+    SELECT o.*, 
+           (CASE WHEN r.id IS NOT NULL THEN 1 ELSE 0 END) as is_reviewed
+    FROM orders o
+    LEFT JOIN reviews r ON o.id = r.order_id
+    WHERE o.buyer_id = ? 
+    ORDER BY o.created_at DESC
+  `;
+  
+  db.all(sql, [uid], (err, rows) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    const out = rows.map(r => ({ ...r, items: r.items ? JSON.parse(r.items) : [] }));
+    res.json(out);
+  });
+});
+
+const port = process.env.PORT || 3000;
+async function start() {
+  try {
+    await runMigration();
+    // 確保 chat_messages 有 receiver_id 欄位 (簡單修補)
+    db.run("ALTER TABLE chat_messages ADD COLUMN receiver_id INTEGER", [], (err)=>{});
+    
+    server.listen(port, () => {
+      console.log(`Server running on http://localhost:${port}`);
+    });
+  } catch (e) {
+    console.error(e);
+  }
+}
+start();
