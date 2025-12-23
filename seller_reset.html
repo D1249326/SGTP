@@ -55,13 +55,12 @@
   </div>
 
   <script>
-    // 暫時移除 Firebase 密碼重設的實作，顯示說明文字。
     const btnReset = document.getElementById("btnReset");
     const infoMsg  = document.getElementById("infoMsg");
     const errorMsg = document.getElementById("errorMsg");
 
     btnReset.addEventListener("click", async () => {
-      infoMsg.textContent = "";
+      infoMsg.innerHTML = "";
       errorMsg.textContent = "";
 
       const email = document.getElementById("email").value.trim();
@@ -70,10 +69,34 @@
         return;
       }
 
-      // 提示尚未實作後端寄信功能
-      infoMsg.textContent = "此功能尚未啟用 — 請聯絡管理員協助重設密碼。";
-      // 可選：開啟 mailto 讓管理員收到通知
-      // window.location.href = `mailto:admin@example.com?subject=重設密碼請求&body=請協助重設 ${encodeURIComponent(email)}`;
+      try {
+        btnReset.disabled = true;
+        btnReset.textContent = "處理中...";
+        
+        const res = await fetch('/api/auth/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          infoMsg.innerHTML = `
+            <div>重設信件已發送！(模擬模式)</div>
+            <div style="margin-top:10px; padding:10px; background:#f0f0f0; border-radius:4px; color:#333; word-break:break-all;">
+              請點擊連結設定新密碼：<br>
+              <a href="${data.resetLink}" style="font-weight:bold;">${window.location.origin}${data.resetLink}</a>
+            </div>
+          `;
+        } else {
+          errorMsg.textContent = data.error || '申請失敗';
+        }
+      } catch (err) {
+        errorMsg.textContent = '連線錯誤';
+      } finally {
+        btnReset.disabled = false;
+        btnReset.textContent = "寄送重設密碼連結";
+      }
     });
   </script>
 

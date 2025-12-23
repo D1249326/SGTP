@@ -14,7 +14,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-
+const crypto = require('crypto');
 
 // ✅ [新增] 建立 HTTP Server 並綁定 Socket.io
 const server = http.createServer(app);
@@ -1279,6 +1279,57 @@ app.put('/api/seller/reviews/:id/reply', sellerAuth, (req, res) => {
   );
 });
 
+app.post('/api/auth/forgot-password', (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: '請輸入 Email' });
+
+  db.get('SELECT id FROM users WHERE email = ?', [email], (err, row) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    if (!row) return res.status(404).json({ error: '找不到此 Email 註冊的帳號' });
+
+    // 產生 Token (有效期限 1 小時)
+    const token = crypto.randomBytes(20).toString('hex');
+    const expires = Date.now() + 3600000; // 1 hour from now
+
+    db.run('UPDATE users SET reset_token = ?, reset_expires = ? WHERE id = ?', [token, expires, row.id], (e) => {
+      if (e) return res.status(500).json({ error: 'DB error' });
+      
+      // 因為沒有 Email Server，直接回傳連結給前端顯示
+      const resetLink = `/reset_password_final.html?token=${token}`;
+      res.json({ 
+        success: true, 
+        message: '重設信件已發送 (模擬)', 
+        resetLink: resetLink 
+      });
+    });
+  });
+});
+
+// ✅ [新增] 重設密碼 - 執行更新
+app.post('/api/auth/reset-password', (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword) return res.status(400).json({ error: '資料不完整' });
+  if (newPassword.length < 6) return res.status(400).json({ error: '密碼長度需大於 6 碼' });
+
+  db.get('SELECT id, reset_expires FROM users WHERE reset_token = ?', [token], async (err, row) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    if (!row) return res.status(400).json({ error: '連結無效或已過期' });
+    
+    if (Date.now() > row.reset_expires) {
+      return res.status(400).json({ error: '連結已過期，請重新申請' });
+    }
+
+    try {
+      const hash = await bcrypt.hash(newPassword, 10);
+      db.run('UPDATE users SET password_hash = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?', [hash, row.id], (e) => {
+        if (e) return res.status(500).json({ error: 'DB error' });
+        res.json({ success: true, message: '密碼重設成功，請重新登入' });
+      });
+    } catch (e) {
+      res.status(500).json({ error: 'Hashing error' });
+    }
+  });
+});
 
 const port = process.env.PORT || 3000;
 async function start() {
@@ -1286,7 +1337,8 @@ async function start() {
     await runMigration();
     // 確保 chat_messages 有 receiver_id 欄位 (簡單修補)
     db.run("ALTER TABLE chat_messages ADD COLUMN receiver_id INTEGER", [], (err)=>{});
-    
+    db.run("ALTER TABLE users ADD COLUMN reset_token TEXT", [], ()=>{});
+    db.run("ALTER TABLE users ADD COLUMN reset_expires INTEGER", [], ()=>{});
     server.listen(port, () => {
       console.log(`Server running on http://localhost:${port}`);
     });
